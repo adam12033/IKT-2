@@ -1,0 +1,53 @@
+Felhőszolgáltatások:
+
+	IaaS
+(Az infrastruktúra, mint szolgáltatás ~ Infrastucture as a Service. A működéshez nélkülözhetetlen dolgok összessége. Ahol a dolgok alatt érthetjük a számítógépet (számítógépeket), azok kommunikációját biztosító hálózati összeköttetést (összeköttetéseket) és az összeköttetések működését garantáló hálózati eszközök összességét.
+Mivel az Oracle VirtualBox programja egy lokális eszköz, ami viszont analóg módon működhet az internetes felhőszolgáltatásokkal itt az infrastruktúra körébe a következőket sorolhatjuk be:
+- maga egy általunk létrehozott virtuális gép annak minden konfigurációs vonatkozásával (KONFIGURÁCIÓ alatt a gép műszaki kiépítettségét értjük, vagyis - processzor, RAM, háttértárolók, stb)
+- a virtualizációs program maga is az infrastruktúra részét képezi (pl. a *.VHD a VirtualBox, VMWare és Hyper-V esetén is egyaránt használható)
+- egyrészt a virtuális gép hálózati csatlakozója (csatlakozói) másrészt pedig a VirtualBox által, héttérben biztosított hálózati megoldásai)
+ 
+	PaaS
+(A platform, mint szolgáltatás. Platform as a Service, ami nyilván az infrastruktúrára telepített operációs rendszert jelenti.
+A modern programozás technológia által használt PLATFORM FÜGGETLEN-ség kifejezés azt jelöli, hogy egy adott operációs rendszerű gépen elkészített és működésre alkalmas állapotba hozott program egy tetszőleg másik operációs rendszerben, mindenféle átalakítás nélkül egyszerűen azonnal használhatunk.
+Az Oracle által menedzsel JAVA programozási nyelv és fejlesztő (JDK=java developer kit magában foglalja mindazon kellékeket, amik révén működőképes JAVA programok lesznek létrehozhatók, ezek közé értve természetesen a kipróbálás érdekében nélkülözhetetlen futtatási lehetőségeket is), valamint futtató (JRE=java runtime environment, ami csak olyan kellékekből áll, amelyek a program végrehajtását szolgálják: ilyen JVM=java virtual machine, vagyis az a virtuális gép, amelyiken az adott operációs rendszerben a JAVA program ténylegesen működni kezd)  környezet pl. ilyen.
+
+A Python esetén is mutatkozik hasonlóság, hiszen egy Windows-ban írt Python program Linux-on és Mac OSX is egyarán működtethető lehet. Ami viszont ennek platform függetlenségét illeti a következő: míg a Java esetén a futtatható program, már valamilyen "gépikód", addig a Python program tulajdonképpen a script mivolta következtében egy egyszerű szöveges állomány. A script programozásnál ugyanis a forrásprogramból a végrehajtható gépikód előállítása futtások során történik meg. /INTERPRETER-rel történő fordítás/
+
+A Microsoft által kidolgozott .net Framework is biztosítja a platform függetlenséget.)
+
+	SaaS
+(A Software, mint szolgáltatás. Software as a Service, vagyis egy konkrét feladatot ellátó program lesz hálózati szolgáltatásként használható. Ilyen például a Google-ék gmail-je.)
+
+
+FELADAT egy karakter alapú, vagyis csak terminál üzemmódban használható Debian oprációs rendszer telepítése, amely alkalmas arra, hogy az asztali gazdagépen működtetett PUTTY terminál programmal elérhető és használható.
+
+1. Használható a korábbi netinstall iso lemezkép
+2. Normál installáció, de figyeljünk a rendszer komponenseknél, hogy semmiféle grafikus vonatkozás ne legyen, ellenben SSH szerver funkció szükséges lehet
+3. NAT típusú NIC=network interface controller kell, hogy a tükörszerről, az interneten keresztül a telepítő lemezen nem található tartlmak legyenek elérhetők
+4. Ha a működő virtuális gépünknél meghagyjuk a NAT-olt kártyát, fontos, hogy azon a TCP 22-es port-jára vonatkozó adatforgalmi szabályozást érvényesítsünk
+5. Ha Host-only kártyára váltunk, akkor szükséges fix IPv4 cím beállítása mégpedig úgy, hogy az illeszkedjen a gazdagépünk, logikai host-only kártyájának címéhez
+(192.168.56.1/24 miatt pl. 192.168.56.2/24 vagy ami ezzel egyenértékű 192.168.56.2 IPv4 address és 255.255.255.0 subnetmask)
+
+
+ad 4.: Itt úgy gondoskodhatunk a forgalom irányításról, hogy a működő virtuális gép menürendszere  Eszközök/Hálózat/Hálózati beállítások/Haladó/Porttovábbítása meg kell adni egy ilyesmi szabályt:
+
+
+SSH	TCP	172.16.16.103	22	10.0.2.15	22
+
+(ahol 172.16.16.103 megvizsgálandó, hogy a gazdagépen milyen esetleg más IPv4 címet mutat)
+
+Majd a gazdagép Windows-ában fittyet hányva a Rendszergazdai jogosultságot igény Elérés engedélyezésére (Mégse) a Putty esetén máris használhatjuk a példában szereplő 172.16.16.103 publikus címet és 22 TCP port-ot
+
+(AZ SSH nem engedélyezi a root közvetlen bejelentkezését)
+
+ad. 5 Itt szükséges fix IPv4 címet beállítani. (Előtte azonban NAT-ról Host only működésűre kell változtatni a hálózati kártyánkat, ezt működő gép esetén is megtehetjük)
+Az ip address show paranccsal ellenőrizhető az aktuális IPv4 címek köre. Majd dhclient enp0s3 paranccsal már kaphatunk egy host only-s címet példámban 192.168.56.101 került beállításra és ezt használva a PUTTY segítségével máris beléphetünk.
+Fix IPv4 cím érdekében: nano /etc/network/interfaces paranccsal szerkeszthetjük az IP címekkel kapcsolatosan rendelkező konfigurációs beállításokat (mivel nálam a root nem működik a nano editor-t sudo-val kell használni)
+
+auto enp0s3
+iface enp0s3 inet static
+address 192.168.56.20
+netmask 255.255.255.0
+
+(FONTOS: a korábbi tartalmakat #-tel kezdve komentté minősíteni)
