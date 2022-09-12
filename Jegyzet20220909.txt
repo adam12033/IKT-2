@@ -1,0 +1,87 @@
+Odáig vagyunk kész, hogy működik a DHCP szerver, amit ki is próbálhatunk úgy, hogy valamely kliens számára igyekszünk attól IPv4 címet szerezni
+
+(Első rendellenesség, hogy a klónozás után nem módosítottuk az /etc/hostname file-okat így a gépeink nehezen megkülönböztethetők. Egyúttal azonban az is érzékelhető lesz, hogy különösebb problémát a névütközés nem eredményez)
+
+(A Windows parancssorában használható ssh és természetesen scp is a Linux-ban is megtalálható. Az SSH szerver funkció egyszersmind egy SFTP funkciót is biztosít, amivel az scp parancsot használva találkozhatunk)
+
+ip a s paranccsal nézzük meg a kliens IP beállításait
+(megállapíthatjuk, hogy a DHCP szolgáltatás még nem fejti ki a hatását, ugyanis a klónozás előtti statikus IPv4 cím van jelen az enp0s3 elnevezésű kártyán)
+A szervernek statikus IP címként a Belső hálózat típusú csatolón, vagyis a kliensek irányába történő összeköttetést biztosító kártyán: 192.168.100.254. A kliensnél pedig a korábbi ip a s 192.168.56.20 címet mutatott.
+
+Vajon mi történik ha a kliensen kiadjuk a ping 192.168.100.254 parancsot?
+
+Valószínűsíhető, hogy az eltérő hálózatú IPv4 "C" osztályú címek, kommunikációs hibát eredményeznek.
+
+(man ip segítségével próbálják megállapítani, hogy kliensnél mi az alapértelmezett átjáró/default gateway
+
+ip route => 192.168.56.0/24 dev enp0s3 proto kernek scope link src 192.168.56.20 Ez azért van így, mert az eredendő statikus IP beállításnál nem rendelkeztünk a default gateway-ről)
+
+nano /etc/network/interfaces
+segítségével egészítsük ki a statikus beállításokat a gateway 192.168.100.254 sorral.
+shutdown -r now tutira érvénybe lépteti a hálózattal kapcsolatos módosításokat, szemben a /etc/init.d/networking restart megoldással
+A bootolás után ip route már természetesen default gateway-ként mutatja a beállított címet és a nincs a hálózat elérhetetlen hibaüzenet sem a ping esetén (ennek ellenére a ping-elés nem működik)
+
+nano /etc/network/interfaces állományban a kártyánál állítsuk be a DHCP-től függő működést.
+
+A DHCP-től függő működésű hálózati kártyánál, nagyon lehetséges, hogy az /etc/init.d/networking restart IP cím nélküli állapotot eredményez
+
+dhclient parancs a Linux-ba szolgál arra, hogy az esetleges DHCP szolgáltatótól kezdeményezzük a IP cím és egy szolgáltatott adatok beszerzését
+
+(man dhclient)
+
+Abban az esetben, ha egy gépnél több hálózati kártya is van, akkor a dhclient <hálózatikártya-azonosító> formulát kell használni.
+
+HF: egy tömör, de rendkívül szakszerű leírást kell készíteni arról, hogy egy eszköz milyen módszer alapján jut az OSI magasabb rétegébe tartozó kommunikációhoz nélkülözhetetlen IPv4 címhez.
+
+Miután megvan a kliens IPv4 címe a ping is működik, amellyel a szerver klienshez közelebbi kártyáját szólítgatjuk.
+
+ip route mutatja, hogy a DHCP-től a default gateway is megjött
+
+cat /etc/resolv.conf tartalma meg azt, hogy a DNS szerverek is rendelkezésre állnak
+(egy kísérlet: ping index.hu azt mutatja, hogy a DNS szervereket megpróbálja elérni, de mivel azok a kétkártyás szerveren túl helyezkednek el még pillanatnyilag nem lehetséges)
+
+ha a ping 10.0.2.15 parancsot használjuk, akkor a két kártyás szerver esetén az egyik kártyán keresztül férünk hozzá a másikhoz, amit tekinthetünk akár úgy is egyik hálózati kártya a másikkal összeköttetésben áll (a két kártya között van átjárás)
+
+ping 10.0.2.2
+
+
+Az átjárás a szerver, mint router használatának megteremtése érdekében tájékozódhatunk a /proc könyvtárban
+(ebben az aktuálisan működő folyamatok/process-ek adatai lesznek megtalálhatók. Lehetséges, hogy a process-id/PID tehát egy sorszám elnevezésű mappában, de másféle kategorizálás is elképzelhető)
+
+ps -fax => kill <PID>
+
+/proc/sys/net/ipv4 könyvtár a rövidítésekből is kikövetkeztethető, hogy az IP protokoll 4 verziójával kapcsolatos működési körélmények adatait tartalmazza.
+
+Itt található meg az ip_forward (fileszerű tároló), amit megnézve (MC-ben F3) egy 0 szerepel benne.
+Ez azt jelenti, hogy a továbbítás nincs bekapcsolva.
+Ha átírjuk 1-re akkor bekapcsolttá válik.
+
+F4 az ip_forward esetén csak root-ként használható, mert a /proc/sys/net/ipv4/ip_forward esetén a tulajdonos a root felhasználó és a root elnevezésű felhasználó csoport. Ezek azért érdekesek, mert a Linux/UNIX rendszerek esetén azt, hogy ki, mivel, mit tehet r=olvasás, w=írás, x=végrehajtás betűkódokkal határozhatjuk meg. Az ip_forward-nál rw-r--r-- érték látható, ami azt jelenti, hogy a tulajdonos felhasználó, tehát esetünkben a root olvashatja és írhatja, míg a tulajdonos csoport és mindenki más, csak írási joggal rendelkezik.
+Ezek a betűkódok egyébként oktális számmal is megjelennek: r=4,w=2,x=1
+A 644 oktális szám tehát rw-r--r-- jelentéssel bír, míg pl. 777 oktális szám jelentése betűkkel rwxrwxrwx vagyis mindenki számára minden engedélyezett
+(FONTOS hogy 3 részből áll: az első a tulajdonos felhasználó, a második a tulajdonos felhasználó csoport bármely tagjára, míg a harmadik mindenki másra vonatkozó jelentést mutat)
+
+A kommunikáció ellehetetlenülése a szerverünk 10.0.2.15 IPv4 című kártyáján túl a NAT-olás elmaradása miatt történik meg.
+Másként a 10.0.2.15 kártyán kilépő üzenetekben benne marad forráscímként a példánk szerinti 192.168.100.129 IPv4 cím, ahelyett, hogy az 10.0.2.15-re lecserélődne.
+
+A Linux rendszerekben rendelkezésre álló iptables parancs szolgál forgalmi szabályok megfogalmazására.
+
+bin és sbin könyvtárak közti különbség, hogy utóbbi olyan gépikódú programokat tartalmaz, amelyek a superuser=root által lesznek csak használhatók
+
+A gyökérkönyvtár linkje ~bin és ~sbin a /usr/bin illetve /usr/sbin könyvtárakra utalnak.
+
+/usr/sbin/iptables
+(azért kellett a teljes elérési útvonalat megadni, mert az aktuális PATH-ban nem szerepelt, mint potencionálisan elindítható programok tárolója a /usr/sbin könyvtár)
+
+/usr/sbin/iptables -L megjelenik 3 lánc(CHAIN) és az azokhoz kapcsolódó, beállított szabályok
+
+INPUT a bejövő forgalmat, FORWARD az átmenő forgalmat, míg OUTPUT a kimenő forgalmat jelöli szabályláncolatok tárolásával.
+
+A láncokon túl szabályok megfogalmazása tekintetében rendelkezésünkre állnak úgy táblák(table) is.
+
+/usr/sbin/iptables -t nat -L
+
+/usr/sbin/iptables -t nat -A POSTROUTING -o enp0s3 -j MASQUERADE
+
+Utána a /usr/sbin/iptables -t nat -L paranccsal ellenőrizhetjük a beállítás sikerét.
+(MASQUERADE all/vagyis protokollnál source és destinatiton esetén egyarán anywhere/bármely cím jelentéssel)

@@ -1,0 +1,66 @@
+Ki kell alakítani egy hálózati környezetet legalább 3 Debian Linux operációs rendszerű számítógéppel, amelynek alapjául a hálózaton elérhető SSHSzerver.ova file-t használhatjuk fel.
+(Amikor egy virtuális törlésére kerül sor, gondoskodjunk annak "nyomtalanul" történő eltávolításáról
+A három gép érdekében szükséges a klónozás. A klónok megkülönböztetése fontos: MAC cím, hostname)
+A hálózati rendszerünkben lévő három gép közül az egyik legyen DHCP szolgáltatást biztosító a többiek számára. 
+(Ehhez a gépek Belső csatoló típusú hálózati kártyával kell rendelkezzenek, amelyek ráadásul ugyanazzal a névvel azonosított hálózatba csatlakoznak)
+A helyihálózatunk esetén teljes kiepítettségekor 64 számítógép fog egyidejűleg működni. Rendelkezésre áll a 192.168.100.0/24 IPv4 címtartomány, amiből szeretnénk a rendszerünk számára elégséges alhálózatot kiválasztani.
+(Címgazdálkodás keretében a CIDR vagy VLSM módszereit használva tudunk igényekhez legpontosabban illeszkedő alhálózatokat képezni.
+A számításhoz szükséges megkeresnünk a 64-nél nagyobb, de hozzá legközelebb eső 2 hatványt: 128 lesz ez
+/Itt az iskolában 172.16.16.0/24 címtartomány áll rendelkezésre, gyakorlati szempontból milyen értelme lehetne a 172.16.16.255 cím meg-ping-elésének igazából ez csak a Linux-ban működik -b kapcsolóval és arra volna jó, hogy az ARP=address resolution protocol táblázat frissítésre kerüljön/
+192.168.100.0 hálózati címtartomány a 128 miatt két részre osztva áll rendelkezésre
+
+0000000
+0000001
+0000010
+0000011
+0000100
+0000101		=> a felsorolt 128 db érték mutatja az illeszkedést, mivel csak 7 bit-et használtunk fel
+0000110		   a byte-ból megmaradt 1 db bit-et, hozzá kell csapnunk az alhálózati maszkhoz
+0000111		   Tehát a 255.255.255.0 vagy /24 helyett 255.255.255.128 vagy /25 lesz az
+...
+1111110
+1111111
+
+
+A /25 alhálózati maszkkal tulajdonképpen az eredeti 254 kiosztható címet tartalmazó tartományt két egymástól elkülönülő alhálózatra bontottuk
+
+I. 192.168.100.0 network address 192.168.100.1 - 192.168.100.126 (kiosztható címek) 192.168.100.127 broadcast address
+II. 192.168.100.128 network address 192.168.100.129 - 192.168.100.254 (kiosztható címek) 192.168.100.255 broadcat address)
+A DHCP szolgáltatást nyújtó számítógépet szeretnénk a LAN-unk átjárójaként is üzemeltetni, hogy a kliensei rajta keresztül érhessék el az internet-et
+(Az átjáró legalább 2 hálózati csatolóval kell rendelkezzen. Esetünkben az egyik, amelyiken a DHCP szolgáltatást nyújtja Belső csatoló, a másik, hogy elérje az internet-et NAT tipusú legyen
+Ahhoz, hogy átmenő forgalom legyen garantálható a két kártyán mindenképp szükséges működési módbéli változtatás ip_forward beállítást kell engedélyezni)
+
+Ha egy proxy nélkül konfigurált apt-t utólag kell módosítanunk a következőt kell tennünk:
+
+(apt install mc
+A Midnight Commander belső editora: mcedit csak létező file szerkesztését teszi lehetővé. Ezért esetünkben a megfelelő könyvtárban előbb használnunk kell touch 80proxy parancsot, hogy ezzel hozzuk létre az üres file-t)
+
+A nano szövegszerkesztővel ha nem létező állományt kezdünk manipulálni: létrehozzuk azt.
+
+nano /etc/apt/apt.conf.d/80proxy
+
+Ebbe a file-ba kell bekerüljön az alábbi sor:
+
+Acquire::http::proxy "http://172.16.16.233:3128";
+A mentés után ezt a file-t már figyelembe veszi az apt és így az utólagosan meghatározott proxy-t használva történik meg a tükörszerverről a http fölött megvalósított adatforgalom
+
+A proxy beállítása után már működővé vált az apt, amivel telepíthettük az isc-dhcp-server csomagot, ami azonban a telepítését követően, beállítási problémák miatt nem tudott működésbe lépni.
+
+Módosítandó az /etc/default/isc-dhcp-server konfigurációs állománya: INTERFACESv4="enp0s8"
+
+/etc/network/interfaces file-t kell módosítani úgy, hogy az enp0s8 kártyához a 192.168.100.254 statikus cím rendelődjön a 255.255.255.128 alhálózati maszkkal
+
+(/etc/init.d/networking restart, ha szükséges a dhclient enp0s3 paranccsal kérjük le a VirtualBox DHCP szolgáltatásától a megszokott 10.0.2.15/24 IPv4 címet és a 10.0.2.2 Default Gateway értékeket)
+
+/etc/dhcp/dhcpd.conf állomány módosítása:
+
+Általános opciók esetén option domain-name-servers 172.16.16.249, 8.8.8.8;
+
+majd:
+
+subnet 192.168.100.128 netmask 255.255.255.128 {
+	range 192.168.100.129 192.168.100.192;
+	option routers 192.168.100.254;
+}
+
+/etc/init.d/isc-dhcp-server restart

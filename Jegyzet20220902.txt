@@ -1,0 +1,52 @@
+Virtuális gép export/import
+
+A virtuális gépek kellékei a userprofile alatt egy VirtualBox VMs mappában találhatók. Gép nevével megegyző mappákban elkülönítve:
+egy XML állomány határozza meg a gép definícióját és egy bináris file pedig a merevlemez tartalmát tárolja
+
+Az XML egy HTML-szerű tag-ekből felépülő állomány, amelynél fontos különbség, hogy míg a HTML-ben előre jól meghatározott tag-eket használhatunk az elnérni kívánt, leginkább megjelenítési céljainkra, az XML állományok lényegében "tetszőleges" tag-ek révén valamiféle adattartalmat írnak le. (XML tehát adatok, HTML pedig megjelenés leírása szolgál)
+
+uuid=universal unique id illetve guid=global unique id/globális egyedi azonosító rövidítések 
+
+Amikor egy gépet exportálunk, akkor tulajdonképpen az előbb emlegetett mappa összetömörítésre kerül így létrehozva egy *.ova állományt.
+
+ova = open virtualization archive
+A MAC=media access control címmel kapcsolatos irányelv arra utal, hogy mely kártyák esetén lesz szükséges a fizikai címet aktualizálni/módosítani
+(fizikai cím vagy mac address 6 byte-os hexadecimális azonosító: 3 byte OUI=organization unique id másik 3 byte egyszerű sorszám)
+
+fizikai
+adatkapcsolati => MAC
+hálózati => IP
+viszonyítási
+szállítási
+megjelenítési
+alkalmazási
+
+A *.ova file-ok az Importálás funkcióval vehetők birtokba.
+
+Abban az esetben, ha egy használatba vett virtuális gépnél telepítésre került az azon működő operációs rendszerbe a VirtualBox Integrációs szolgáltatások kiegészítése, akkor importálás után jellemzően az USB-vel összefüggő problémák lesznek tapasztalhatók.
+(VBoxGuestAdditions.iso file-t használva tudjuk telepíteni az Integrációs szolgáltatásokat)
+
+Az OS-ek az autentikációhoz szükséges jelszót jellemzően titkosítva tárolják.
+A Debian esetén a shadow alkalmazása következtében ugyan a titkosított jelszó a /etc/shadow file-ból megtudható, de annak visszafejtése viszonylag nehézkes (egyébként a /etc/shadow állományra rálátást csak a root kap)
+
+A root ismeretlen jelszavának módosítása:
+
+A GRUB menüjénél pl. lefele nyilat nyomva az automatikus továbblápést megszakíthatjuk. Az alapértelmezett rendszertöltési alternatívát kiválasztva az "e" betűvel kezdhetünk bele annak szerkesztésébe. A linux ... quiet sor végére kell beírni: init=/bin/bash (tulajdonképpen a /bin/bash által meghatározott rendszerhéj inditását kérjük) Majd üssük le az F10-et vagy a CTRL+X-et
+
+A beindulás után: root@(none):/# prompt jelenik meg, amiből a root user-rel történő használati lehetőség lesz kiolvasható.
+
+Amikor a cat /etc/shadow|more parancsot kiadtuk, a gépünket az ún. pipe technika következtében lefagyasztottuk.
+
+(Angol billentyűzeten hosszú ó alsó állásban, tehát nem Shift-tel adja az = karaktert, aláhúzás, kötőjel, csillag billentyű, a jobb oldali Shift mellett pedig a / karaktert, a hosszú ű Shift-tel adja | karakter)
+
+A jelszót tartalmazó állomány közvetlen manipulálása helyett használjuk inkább a passwd parancsot.
+
+Ha root-ként vagyok bejelentkezve és egyszerűen csak a passwd-t beírom, akkor a saját jelszó lesz megadható.
+
+passwd <username> parancsot csak a root adhatja ki más felhasználóra vonatkozóan.
+
+Mivel ebben az üzemmódban a merevlemez csak olvasható READ ONLY üzemmódban dolgozik, a jelszóváltoztatás nem történik meg.
+
+mount -o remount,rw / (vagyis újra csatlakoztatjuk a merevlemezt immáron írható olvasható módon.
+(- a rövid ü alsó álása)
+
