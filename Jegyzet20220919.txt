@@ -1,0 +1,72 @@
+SMB=server message block/short message block egy olyan protokoll, amit jellemzõen megosztások érdekében mûködtetnek (file-, nyomtatómegsoztás)
+SMB lényegében CIFS=common internet file system megválósítása
+
+A Linux/UNIX rendszerekben az smb-hez köthetõ samba nevezetû jellemzõen filemegosztás érdekében mûködtetett szolgátatás egy "mellékvágánya"-ként tudunk a Microsoft Active Drirectory tartományi szolgáltatásának alternatíváját létrehozni.
+
+A hálózati címzések fontos alapfeltétele az egyediség garantálása, ami esetünkben nem áll fenn a számítógép neveket illetõen, hiszen a korábban végrehajtott klónozás következtében valamennyi gép neve: SSHSzerver. Mi azonban szeretnék: SZERVER, CLIENT1, CLIENT2 elnevezéseket használni, aminek érdekében a /etc/hosname file-t kell módosítani értelmeszerûen
+
+(ip a s paranccsal tudjuk ellenõrizni a kliensek esetén, hogy megfelelõ IPv4 cím és egyéb DHCP-tõl származó adat birtokába kerültek-e
+Itt kiderült, hogy a klónozás miatt fizikai cím ütközés áll fenn, aminek következménye a DHCP mûködése miatt az lehet, hogy különbözõ, de azonos MAC-ADDRESS-szel rendelkezõ gépnek kerül ugyanaz az IP cím kiosztásra
+A DHCP szerveren /var/lib/dhcp/dhcpd.lease file tartalmazza a címosztással kapcsolatos filejegyzéseket
+A dhclient paranccsal lesz lehetõség újra IP címet igényelni egy DHCP szolgáltatótól)
+
+Esetemben a Client1 192.168.100.132/25 míg a Client2 192.168.100.130/25 címmel rendelkezik, így a Client1-en kiadva a ping 192.168.100.130 parancsot az kell történjen, hogy korrekt kommunikációt tapasztalhatunk. Ezt fordíva is diagnosztizálhatjuk.
+Nem mûködik azonban a ping Client2 a Client1-rõl és fordítva sem, mert nincs névfeloldás. AZ /etc/resolv.conf file-ja tartalmazza a DNS szervereket, amiket nyaggathat az adott számítógép a névfeloldás érdekében. Ezt az állományt egyébként a DHCP szolgáltatás tölti fel.
+
+
+Hogy legyen egy tartományi környezetünk, amiben a centralizált adminisztrációt az Active Directory, adatbázis alapú rendszere garantálja. Telepítsük a szükséges samba csomagokat a Szerver nevezetû gépünkre.
+
+(A Samba által biztosított Active Directory-s analóg mûködés kétféle módon ad névfeloldási lehetõséget: 1. a bind9 csomag telepítésével egy DNS szerver funkcionalitáshoz jutunk és a samba azt használhatja, 2. a Samba tartományi mûködésénél azonban lehetséges egy belsõ/internal, tehát a samba által biztosított névfeloldást is használni)
+
+Telepítsük tehát a Szerver gépre a következõ csomagokat:
+
+apt install samba smbclient winbind krb5-config
+
+/etc/samba/smb.conf tartalmazza a SAMBA-service aktuális mûködési körülményeit. Ezt az állományt átnevezve tudjuk biztosítani, hogyha késõbb szükséges volna lehessen azt visszaállítani majd
+(MC-ben F6, mv /etc/samba/smb.con /etc/samba/smb.conf.EREDETI)
+
+Készítenünk kell egy új. smb.conf file-t, amit viszont már a tartományi/domain elvek szerint határoznánk meg.
+
+samba-tool -> megmutatja a lehetséges alparancsokat, amelyekkel dolgozhatunk
+
+samba-tool domain -> itt a tartományi konfigurációval kapcsolatos parancsok sorakoznak köztük a provision alparancs is
+
+samba-tool domain provision
+Realm: <egy használni kívánt tartománynevet vár> balintdezso.local
+Domain [balintdezso]: <itt lényegében a NETBIOS tartomány név lesz megadható, amit egy enter leütésével elfogadhatunk>
+Server Role [dc]: <itt a szerver funkcionalitását adhatjuk meg, a felkínált dc=domain controller/tartomány vezérlõ>
+DNS backend [SAMBA_INTERNAL]: <ezzel azt adjuk meg, hogy a tartományvezérlõ végezze a névfeloldást is>
+DNS forwarders [172.16.16.249]: <itt adhatjuk meg azt, hogyha a tartományi névfeloldás nem vezetne eredményre kihez lehet fordulni>
+Administrator password: <itt kell megadni a tartományi környezet Administrator elnevezésû felhasználójának jelszavát>
+Retype password:
+
+Ezek után fejezõdik be a konfigurálás, létrejött egy új smb.conf a /etc/samba könyvtárban, benne azokkal az infokkal, amiket az imént adtunk meg.
+Át kell másolnunk a /var/lib/samba/private/krb5.conf állományt a /etc könyvtárba. (cp /var/lib/samba/private/krb5.conf /etc/)
+
+(Az eredetileg a /etc/-ben lévõ krb5.conf állományt írjuk felül az új körülményeinkhez illeszkedõvel)
+
+A véglegesítés a következõ parancsok által lehetséges:
+
+systemctl stop smbd nmbd winbind (leállítja a szerverfunkcióként mûködõ ún. daemon-okat: samba, netbios, winbind)
+Mivel ezek a folyamatok a boot-oláskor újraindulnának, meg kell tiltanunk azt is (/etc/init.d könyvtár tartalmazza azokat a rendszertölréskor beindítandó folyamtokat, amiket az iptables kapcsán láthatunk, hogy különbözõ futási szintekhez (runlevel) passzintva miként tudunk tényleges használatban venni az rcX.d könyvtárakban elhelyezett linkek alapján)
+Hogy ezek a leállított daemonok ne indulhassanak be boot-oláskor, letiltásra kell kerüljenek: systemctl disable smbd nmbd winbind
+A letiltott daemon-ok helyébe léptessük a samba-ad-dc-t:
+
+systemctl unmask samba-ad-dc (lényegében ilyen boot-oláskor indíthatóvá tesszük az adott daemon-t)
+systemctl start samba-ad-dc (indítjuk is azonnal)
+systemctl enable samba-ad-dc (olyan lesz, hogy boot-oláskor indulni fog automatikusan)
+
+Mivel az elõzõek nem okoztak olyan változást, hogy a klienseknél az eredetihez képest az immáron tartományvezérlõként mûködõ szerverünk, mint névfeloldást végzõ DNS szolgáltatást nyújtó megjelenjen el kell végeznünk néhány változtatást:
+
+A Szerver nevû gépen: /etc/dhcp/dhcpd.conf állományban a globális opcióknál vegyük fel DNS szerverként magát a tartományvezérlõt is a 192.168.100.254 statikus IPv4 címével
+(a másik kettõt elfelejthetjük: 172.16.16.249, 8.8.8.8, ugyanis a samba-ad-dc konfigurálásakor, mint DNS forwarder-t szerepeltettük a sulis DNS szervert: 172.16.16.249)
+Hogy a változásaok érvenyesüljenek, újra kell indítani a dhcp szolgáltatást: /etc/init.d/isc-dhcp-server restart
+Majd ezt követõen, hogy érvényesüljenek az új körülmények a klienseken is, használjuk azokon a dhclient parancsot a DHCP adatok megújítása érdekében
+
+Ahhoz, hogy kívánt funkcionalitást elérjük szükségünk lesz a Client1 illetve Client2 gépek balintdezso.local tartományba léptetésére, amit nem nagyon jellemzõ, hogy Active Directory szolgáltatásnál, mondjuk Linux-os kliensekkel alkalmaznánk.
+
+Ahhoz, hogy a tartományba léptetéshez szükséges sok funkciós net parancs a rendelkezésünkre álljon telepítenünk kell a klienseket a smbclient csomagot (apt install smbclient)
+
+A samba-tool domain join balintdezso.local MEMBER -U Administrator paranccsal léptethetjük be a tartományba az egyik és másik klienst, aminek hatására a samba-tool computer list már kell is mutassa a jelenlétüket
+
+

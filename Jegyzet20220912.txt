@@ -1,0 +1,93 @@
+		---DHCPDISCOVER----------->
+(mivel a kliensnek csak MAC-address-e van azt helyezi el a felderítés érdekében elküldött keretben, mint a feladó címét, mivel azonban más címről nincs tudomása címzettként a mindenkit jelentő FF-FF-FF-FF-FF-FF speciális fizikai címet használja)
+               <---DHCPOFFER---------------
+(A DHCP szolgáltatást nyújtó eszköz egy ajánlati üzenetet juttat el, természetesen a kliens MAC-addressére, amiben már szerepel a magasabb rétegű kommunikációhoz szükséges IP cím is /alhálózati maszk, default gateway, dns szerver IP címe,.../)
+DHCP client					DHCP server
+               ---DHCPREQUEST------------->
+(Ez lesz az a kérés, amelynél már a kliens a szerver IP címét figyelembe véve kéri el az ajánlatban meghatározottakat)
+               <--DHCPACK-----------------
+(A nyugtázással egyidejűleg a szerver nyilvántartásában is bejegyzésre kerül, hogy milyen MAC-address-hez, milyen IP cím került kiadásra és ennek a bérleti viszonynak a kezdete és lejárata is adminisztrálásra kerül)
+
+(Nagyon fontos tisztán látnunk azt, hogy a számítógépes hálózati kommunikáció az OSI rétegeit szem előtt tartva más és más adattartalmak megjelenését teszi szükségessé.
+Fizikai rétegben: a bit-eknek megfelelő jelek (elektromos/optikai) formába történő átviteli közegra való helyezése és onnét történő figyelembe vétele
+Adatkapcsolati rétegben: már szerepet játszanak cím információk is
+Hálózati rétegben: szükséges olyan címinformáció is, amely az együntető rendszert, jól elkülönülő kisebb és így könnyebben kezelhető részekre szeparálja)
+
+(A Python programozási nyelv felhasználásával készíthetünk egy olyan programot, amely modellezi a DHPC szolgáltatást.
+Ebben szerepet játszhat egy kiosztott.txt file, amely az aktuálisan kiosztott MAC-IP párokat és a bérlet érvényességi időtartalmát tárolja.
+A címek kiosztása történhet egy igeny.txt alapján, amelyben MAC cím és REQ rövidítés szerepel, ha az adott MAC címhez új IP igény merül fel, illetve MAC cím és REL(ease) lesz látható, ha egy korábban kiosztott cím kell elegedésre kerüljön)
+
+
+Az iptables, mint csomagszűrő (netfilter) használati körülményei
+
+
+--->PREROUTING------>[ROUTE] -----> FORWARD--------->POSTROUTING--->
+	NAT             |                      ^
+        CONNTRACK       |                      |
+                        |                   [ROUTE]
+                        ˇ                      ^
+		      INPUT                    |
+                        |                    OUTPUT
+                        ˇ                      ^
+                                               |
+
+
+Jól látható a fenti illusztrációban mindazon láncok (forgalmi szabály láncok) elnevezései, amik az iptables használata során voltak megjeleníthetők
+
+(iptables -L vagy éppenséggel az iptables -t nat -L)
+
+(A virtuális gép ún. terminal ablakán keresztül bejelentkezhetünk root-ként, aminek a korábbi jelszóbeállítás következtében a Titok szó volt a jelszava.
+A root felhasználó jogosultságai közé tartozik, hogy bármely user jelszavát módosíthatja: passwd <felhasználói név>
+User-ekről tájékozódhatunk a cat /etc/passwd paranccsal, ami egy szöveges állományt jelenít meg ebből tudhatók meg a rendszerünkben meghatározott felhasználók alapadatai. Ez a file: /etc/passwd minden felhasználó által olvasható.
+Alapadatok: felhasználói név:x:UID=user id:GID=group id:GECOS mező, amiben teljes név és egyéb személyes információk szerepelhetnek egymástól vesszőkkel elválasztva:a felhasználó személyes ún. HOME könyvtára:az adott felhasználó bejelentkezését követően használható shell~rendszerhéj
+
+Az iméntiekben szereplő 2. mező x értéke utal arra, hogy működik a shadow rendszer, amely a /etc/shadow file-ban, amit csak a root olvashat egyéb felhasználói információkat is nyilvántart. pl titkosított jelszó, jelszó érvényeségi ideje, stb.
+
+cat /etc/shadow)
+
+Jellemző a Linux esetén, hogy különféle beállítások az /etc könyvtáron belül megtalálható *.conf file-okban lesznek láthatók.
+/proc/sys/net/ipv4/ip_forward bekapcsolt állapota (0-ról 1-re) nemcsak az adott helyen, hanem a /etc/sysctl.conf állománya révén is biztosítható
+
+sysctl net.ipv4.ip_forward
+(A Windows parancssorán keresztül érvényesített ssh kapcsolat, mivel az az esetemben a bdezso normál felhasználóval jött létre, ennek a user-nek a keresési útvonalait tartalmazza a PATH környezeti változóban, hiába váltok át superuser üzemmódba a su paranccsal és a root jelszavával hitelesítve.
+set parancs mutatja a környezeti változók (environment variables) aktuális értékét, ahol az előbb említettek szerint PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+A sysctl viszont a /usr/sbin könyvtárban lakik. Mivel a programok végrehajtásakor ha tartózkodunk valahol a könyvtárak rendszerében és a hivatkozott program abban nem található, akkor a PATH által meghatározott könyvtárakat nézi végig az OS, hátha valamelyik fölleli a keresett program file-ját. which sysctl paranccsal tudunk utána nézni annak, hogy a sysctl parancs hol található.
+Az útvonal kiegészítése: az export PATH="$PATH:/usr/sbin" paranccsal lesz megtehető, ilyenkor a set esetén is látható a változás.
+PATH és $PATH különbsége az, hogy a dollár nélküli egy változó azonosítóját adja meg, míg a $-os megoldás az adott változó aktuális értékét. A fenti parancs a PATH változó új értékét úgy határozza meg, hogy figyelembe kell venni annak korábbi tartalmát, amihez hozzá kell még fűzni a :/usr/sbin hivatkozást)
+
+sysctl -w net.ipv4.ip_forward=1 (ez alternatív módon, de továbbra is ideiglenes jelleggel módosítja az egyébként /proc/sys/net/ipv4/ip_forward értékét 1-re)
+Ha a /etc/sysctl.conf állományban elvesszük a #-et (comment jelölés) a net.ipv4.ip_forward=1 sor elől, akkor így maradandó módon tudjuk biztosítani az átmenő forgalmat, hogy az automatikusan működésbe lépjen a boot-oláskor is.
+
+Az iptables paranccsal megfogalmazható forgalmi szabályt nem tudjuk ennyire egyszerűen stabilizálni.
+
+iptables -t nat -A POSTROUTING -o enp0s3 -j MASQUERADE
+
+Az iptables paranccsal aktuálisan beállított szabályokat az iptables-save paranccsal, ha output átirányíást is alkalmazunk, eltárolhatjuk egy file-ban.
+
+(Parancsok esetén a > vagy >> jeleket használva rendelkezhetünk az adott parancshoz kapcsolódó output átirányításról. Ez egyébként azt jelenti, hogy parancs szokásos kimenet pl. képernyő helyett a nagyobb, vagy dupla nagyobb relációjel után meghatározott file-ba kerüljön a tartalom)
+
+iptables-save ilyenkor képernyőre kerül az eredmény, akkor azonban ha így használjuk: iptables-save > /root/nat.szabaly akkor a /root könyvtárba egy nat.szabaly állományba fog íródni az eredmény
+
+(> és a >> közti különbség az, hogy utóbbi hozzáfűzi a file-hoz az újabb tartalmat, a szimpla nagyobb jel felülíja a megnevezett file-t az új tartalommal)
+
+Az elmentett szabályokat az iptables-restore</root/nat.szabaly parancsot használva állíthatjuk vissza.
+(itt a < az input átirányítást jelenti, vagyis esetünkben az iptables-restore parancs nem a billentyűzetről, hanem a meghatározott file-ból kapja a bemenetét. A billentyűzet általában a parancsok alapértelmezett bemenete)
+
+A rendszerindítás(boot-olás) során automatikusan beinduló programok jellezően az /etc/init.d könyvtárban helyezkednek el.
+Itt úgynevezett shell-script állományokat találhatunk, amik lényegében olyan egyszerű szöveges állományok, amelyben soronként az operációs rendszer végrhajtandó parancsait helyezzük el.
+
+Ha elmegyünk a /etc/init.d könyvtárba és ott, root-ként kiadjuk a touch natolas parancsot, akkor keletkezik egy 0 byte terjedelmű, tehát üres file.
+(A csillaggal és zöld színnel megkülönböztetett ún. shell-script állományok tulajdonosra, tuladonos csoportra és mindenki másra vonatkozó jogosultságainál megjelenik az "x", ami itt az eXecutable~végrehajtható jellemzőt mutatja. Emlékeztetőül ez a jogosultság 1-es értékkel került számításba vételre az oktális jogosultság kód megadásakor. r=4, w=2, x=1 és amikor azt látjuk pl. 755 ez igazából a: rwxr-xr-x -nek felel meg, ami egyébként annyit tesz: a tulaj minden joggal rendelkezik, a tulajcsoportja és mindenki más viszont csak az olvasás és a végrehajtási joggal rendelkezik)
+
+Az időközben létrehozott natolas file-unkat a chmod +x natolas paranccsal tehetjük mindenki számára végrehajthatóvá.
+Jellemzően a shell script állományok első sorában a #!/bin/bash jellegű speciális komment fejezi ki azt, hogy az illetű állományt milyen rendszerhéj/shell figyelembevételével kell végrehajtani majd.
+(A rendszerhéj, mint parancsértelmező áll rendelkezésünkre ilyen pl. a /bin/sh vagy a /bin/bash)
+
+A Linux rendszerünk többféle üzemmódban is beindulhat (futási szint/runlevel)
+runlevel -> N 5 jelenik meg
+
+Ha az /etc könyvtárban körbenézünk találhatunk rc0.d, rc1.d, rc2.d, ..., rc5.d, rc6.d és rcS.d könyvtárakat. Ezek kapcsolódnak a különböző futási szintekhez. Tartalmuk az /etc/init.d könyvtárában található shell-script állományokra utaló hivatkozás (LINK) @Sxx... vagy @Kxx... módon jelennek meg a /etc/init.d könyvtárban található állományokra utaló linkek (s=set beállít, k=kill kikapcsol jelentéssel)
+
+Ha bizonyosak akarunk lenni az init.d-ben található shell-script végrehajtását illetően, abban érdemes a /usr/sbin/iptables-restore hivatkozással szerepeltetni a kívánt parancsindítást, hogy a keresési útvonalak nem megfelelősége esetén is korrekten működjön.
+
+Meg kell oldani, hogy a Gep1-hez hasonlóan működjön a Gep2 is. Továbbá feladat, hogy a Linux rendszerekben a /etc/hostname módosításával minden gépünk úgy hívjunk, ahogyan a VirtualBox kezelőjében látható.

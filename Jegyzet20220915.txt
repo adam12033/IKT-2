@@ -1,0 +1,128 @@
+Névfeloldás:
+
+Amikor egy webböngészõ programba beírjuk pl. index.hu vagy origo.hu a kliens és szerver közötti kommunikációs csomagokba természetesen az érintettek IP címe és MAC-Addresse-i kerülnek.
+
+A Domain-name szerkezete jobbról balfelé haladva lesz kiismerhetõ:
+
+1. TLD=top level domain (legfelsõ szintû tartomány név)
+(2,3 betûsek általában, de kb. 2000-tõl ideiglenes jelleggel ugyan, 4 sõt akár 6 betûsek is használhatók
+2 - ilyenek a földrajzi hovatartozást kifejezõk hu - Magyarország, de = Németország, it = Olaszország, uk = Nagy-Británia (egyesült királyság)
+/de pl. nem igazán használt az us = USA, ugyanis mivel az Internet szülõhelye ott inkább a 3 betûsek használatosak/
+
+IANA~Internet Assigned Numbers Authority /internetes számkiosztó hatóság/ => Domain regisztráció egy olyan felügyelt folyamat, amelyben egy tartománynév, ha az speciel nem foglalt, legalább egy IP címmel kerül nyilvántartásba vételre
+
+3 - jellemzõen a tevékenységekkel összefüggõk com = üzleti/vállalati, edu = oktatás, mil = fegyvereserõk, org = jellemzõen nemzetközi szervezetek
+
+4 - itt például az aero = repüléssel összefüggõ szervezetek/vállalatok részére fenntartott
+
+6 - itt pl. museum = kimondottan kiállító helyek számára fenntartott
+
+
+A névfeloldás folyamata esetén abban a szituációban, amikor más a segítségünkre nincs fordulhatunk az ún. DNS root szerverekhez a kérésünkkel.
+
+A Windows-ban és a Linux-ban is elérhetõ az nslookup parancs, amivel közvetlenül tanulmányozható a névfeloldás folyamata.
+(nameserver keresõ ~ nslookup)
+Mûködésekor egy önálló shell környezetbe kerülünk (ami annyit jelent, hogy belsõ parancsainak értelmezése egy prompt után beírva azokat fog megtörténni) Ilyen még pl. a netsh, diskpart
+jellemzõje ezeknek, hogy ? paranccsal tájékozódhatunk a használatról.
+
+Az nslookup beindítása után, kapunk a hálózati környezetünk alapján információt arról, hogy milyen nevû és milyen IP címû névfeloldó szerver lesz az, amely majd kiszolgál bennünket (esetünkben dhcpdns.kulkergimi.lan és 172.16.16.249)
+(Nyilván ez a DNS szerver az, amit pl. ipconfig /all hatására megjelenõ információk között is láthatunk, de természetesen a hálózati kártyák beállítására szolgáló felületeken is megadhatók, vagy DHCP-t használva megadottak ezek, Jellemzõen több DNS szerver/nameserver megadásra kerülhet, azzal a szándékkal, hogy amennyiben a bizonytalan mûködésûnek tekinthetõ hálózati környezetben valamelyik nem lenne elérhetõ, akkor vegye át egy másik szerepét)
+
+
+pl.:
+
+> index.hu <- ennek a domain-névnek megfeleltetett IP címeket szeretnénk megtudni
+Server:  dhcpdns.kulkergimi.lan <- ezt a nameserver-t kérdezzük meg errõl
+Address:  172.16.16.249
+
+Non-authoritative answer: <- nem illetékes válasz ez alatt értsük azt, hogy a suli dns szerever nem illetékes az index.hu tartományban
+Name:    index.hu
+Addresses:  2a02:730:4000::d0
+          2a02:730:4000::c0
+          2a02:730:4000::e0
+          2a02:730:4000::f0
+          194.143.245.39
+          213.181.199.15     <= amiatt jelenik meg ennyi IP cím, hogy az index.hu hírportált érõ terhelés legyen
+          81.0.120.158          ilyen sok gép között megosztható
+          213.181.199.16
+          81.0.120.157
+          213.181.199.17
+          213.181.199.14
+          
+          
+A Linux nslookup-ja egy kicsit más mûködést mutat, de az index.hu vagy origo.hu domain nevek válaszait szolgáltatja (megfigyelhetõ, hogy az alapértelmezett DNS szerver 172.16.16.249#53 módon szerepel, aminek megfejtése az /etc/services file-jában látható, ahol is domain elnevezéssel szerepel UDP és TCP protokollok esetén is az 53 port értéke, ami nyilván azt jelenti, hogy ez a névfeloldás nevezetû szolgáltatás ezen a port-on keresztül lesz alapértelmezetten elérhetõ
+A Linux-ban egy nmap program szolgál arra, hogy egy tetszõleges gép esetén, annak IP címe ismeretében tájékozódhassunk pl azügyben, hogy milyen port-ok vannak nyitva, vagyis vélelmezhetõen, milyen szolgáltatásokat nyújt a vizsgált számítógép ~ PORTSCANNER)
+
+No, de hogyan ismerkedhetrnénk össze az INTERNET root DNS szervereivel:
+
+<---------------------
+dhcpdns.kulkergimi.lan. (ahol a végén a . tulajdonképpen a kiinduló szintet, vagyis a root szerverek helyét akarja jelölni)
+
+Ezt figyelembe véve az nslookup használatával kisérletet tehetnénk a . domain-name megfejtését illetõen.
+
+Ahhoz, hogy az internetes DNS root szerverek azonosítóihoz hozzáférjünk az nslookup-ban használni kell a set type=ns parancsot, azért, hogy a válasz (answer) a nameserverek információira koncentráljon
+
+Így lekérve a speciális tartotmány név . adatait láthatjuk a-tól m-ig a root-servers.net tartomány névszervereinek szöveges azonosítóit
+
+A Linux-ban a net-tools csomag telepítése miatt áll rendelkezésre az nslookup. De úgy általában dns-sel kapcsolatos egyéb programok pedig a dnsutils csomagban lesznek megtalálhatók
+
+(apt search dns) -> apt install dnsutils (dig parancs miatt, amit önmagában használva máris megmutatja a root szervereket)
+
+A Linux tartalmas egy host parancsot is, amely szintén használható DNS diagnosztikára
+pl. dhcpdns.kulkergimi.lan hatására megjelenik a névhez kapcsolódó IPv4 cím is.
+
+
+
+13terem.budapest.ktch.hu domain név esetén nézzük végig azt, hogy amennyiben a root szerverektõl indítjuk a névfeloldást, hogy jutunk el végülis a jelzett szöveges azonosító IP cím párjához (vagy ahhoz az eredményhez, hogy ehhez nincs IP cím rendelve)
+
+
+server a.root-servers.net nslookup paranccsal tudom beállítani azt, hogy mely szerverhez fordulnék a kérdésemmel (Question Section)
+13terem.budapest.ktch.hu mivel a Windows-os nslookup-ban nem igazán kezdett mûködni az, amit illusztrálni kívántam, áttérünk a Linux imént telepített dig parancsára.
+
+dig @a.root-servers.net 13terem.budapest.ktch.hu hatására azt mondja a root szerver, hogy én megmondani a címet nem tudom, de a .hu TLD esetén illetékes szervereket felsorolom, hogy kérdezõsködj azoknál.
+
+Folytatva a kérdezõsködést:
+
+dig @a.hu 13terem.budapest.ktch.hu az itt kapott válasz lényege hasonló a címet megmondani nem tudja, de a ktch.hu tartományban illetékes DNS szervereket meg tudja nevezni, amelyeknél folytatódhat a kérdezõsködés.
+
+dig @chad.ns.cloudflare.com 13terem.budapest.ktch.hu ennek válasza közvetetten azt mutatja, hogy mivel egy fiktív domain név került megadásra a tartományi szint csak a ktch.hu-ig terjed az alatt nincs budapest, aminek lehetne további illetékes névszervere, amit kérdezgethetnénk és ezek miatt vonhatjuk le azt konklúziót, hogy DNS rendszerben nincs 13terem.budapest.ktch.hu ilyen valóságos bejegyzés
+
+nav.gov.hu (kormany.gov.hu)
+
+dig @a.root-servers.net nav.gov.hu
+dig @a.hu nav.gov.hu
+dig @adns0.gov.hu nav.gov.hu <=> 84.206.52.91
+
+
+AZ nslookup set type parancsánál használható DNS rekord típusok:
+
+A - ez egy állomásrekord, amelynél lényegében a szöveges azonosító mellett megjelenik az IPv4 cím is
+AAAA - ugyanaz, mint az elõbbi, de IPv6-tal
+MX - mutatja meg a tartomány mail-exchanger funkciójú gépeit (vagyis a tartomány elektronikus levelezés során használt POST OFFICE PROTOCOL (pop3) alapján mûködtetett, ebérkezõ küldeményeket menedzselõ postahivatali szervereit /ezeket prioritásuk alapján számokkal is megkülönböztetik: 10, 20, .../)
+NS - természetesen a tartomány illetékes nameserver-eit fogja megmutatni
+SOA - vagyis start of authority/hitelesség kezdete, ami lényegében egy a tartomány egészével kapcsolatos összefoglalónak tekinthetõ
+
+A SOA rekorddal kapcsolatos lekérdezés eredménye ilyesmi:
+
+> set type=soa
+> ktch.hu
+Server:  [172.16.16.249]
+Address:  172.16.16.249
+
+Non-authoritative answer:
+ktch.hu
+        primary name server = carioca.ns.cloudflare.com <= a tartomány elsõdleges nameserver-e
+        responsible mail addr = dns.cloudflare.com <= a felelõs email címe (dns@cloudlare.com)
+        serial  = 2273636898 <= a SOA rekord és magának a tartománynak a sorszáma
+        refresh = 10000 (2 hours 46 mins 40 secs) <= egyéb DNS szerverek a taromány adatait ennyi idõnként kell frissítsék
+        retry   = 2400 (40 mins) <= amennyiben a frissités nem sikerült, ennyi idõ múlva kell azt megismételni
+        expire  = 604800 (7 days) <= ennyi idõ elteltét követõen már nem tekinthetõ érvényesnek a tartomány adattartalma
+        default TTL = 3600 (1 hour) <= alapértelmezett time to live érték /élettartam/
+        
+  (A SOA serial bejegyzése esetén alkalmazható pl. 202 209 161 533  (nagyságrend 100 milliárdos) fontos tudnunk, hogy a tartomány sorszám értéke viszont olyan nagyságrendû lehet csak, ami belefér 4 byte-os, sok helyütt a programozás világában int, tehát pozitív és negatív egész számokat tárolni képes adattípusba. / -2^31 - +(2^31)-1, -2147483648 - +2147483647 /)
+  
+  
+CNAME - amit aliasnévnek is mondhatnák, valamilyen eredndõ elnevezés mellett alkalmazható álnév
+
+Használva a névfeloldás programjait pl. ha a feloldandó tartomány név az nslookup-ban com. akkor erre jóeséllyel a com TLD illetékes névszerverei jelennek meg.
+

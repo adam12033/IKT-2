@@ -1,0 +1,67 @@
+Azt kellene megoldanunk, hogy egy virtuális környezetben legyünk képesek demondtrálni, hogy két Windows operációs rendszerû számítógép miként tud úgy együttmûködni, hogy annak ellenére, hogy csak az egyiknek van internetkapcsolata azt a másik is használhassa.
+Ugyanezt demonstrálni volna szükséges két Linux-os géppel és olyan vegyes megoldással is, aminél egyik esetben a Linux lesz az átjáró (mert az kapcsolódik az internethez), a másik esetben pedig a Windows operációs rendszerûgép internetes kapcsolatát kell megosztani a Linux-os géppel.
+
+TERV:
+
+Mivel virtualizációra a VirtualBox programot használjuk a fentiek figyelembe vételekor ezekre kell felkészülni:
+
+- köll 2 db Virtuális gép
+- az egyik gépen kell két hálózati kártya: NAT és Belsõ hálózat fajta, a másiknál elegendõ egy Belsõ hálózat csatoló is
+- a virtuálisgépekre fel kell telepíteni az operációs rendszereket (a praktikum megkövetelheti, hogy legyen mindig a kezünk ügyében egy Windows 10 Pro és egy Debian Linux alaptelepítésû virtuális gép, amiket legfeljebb csak klónoznunk kell a továbbhaladás érdekében)
+
+[Konkrétan oldják meg, hogy LinuxAlap néven álljon rendelkezésünkre egy Debian Linux operációs rendszerû alaptelepítés, grafikus felhasználói felület nélkül, ssh szerverszolgáltatással. A root felhasználón túl egy Elsõ Felhasználó teljesnevû user lesz még szükséges, aminek a user1 felhasználói nevet adjuk. Mindkét említett felhasználó a Titok2022 jelszóval rendelkezzen. Egyetlen NAT hálózati kártyát kell a gépbe beépíteni és 2 GB RAM-ra valamint 10 GB HDD-re lesz szükségünk.
+
+Készíteni kell továbbá egy W10ProAlap néven rendelkezésre álló virtuális gépet, amelyre a Windows telepítõ lemezen megtalálható install.wim állományt kell elhelyezni annak megfelelõ index-szel rendelkezõ Pro verzióját szem elõtt tartva. 
+Az így letrejövõ gép 2 GB RAM-mal és 20 GB HDD-vel rendelkezzen. Az egyetlen használható felhasználói fiók az Elsõ Felhasználó teljese névvel és user1 valamint Titok2022 autentikációs adatokkal rendelkezzen.
+
+Az elején megfogalmazott feladatot oldjuk meg aszerint, hogy egy Windows klón: W10Router, lesz a LClient Linux OS-û kliensgép átjárója
+
+1. Klónozás -> figyelni a MAC címekre
+2. W10Router hardverkörülményeinek kialakítása +hálózati kártya: Belsõ hálózat ROUTERES switch névvel
+3. LClient hardverkörülményeinek módosítása: NAT->Belsõ hálózat ROUTERES switch névvel
+
+(A Belsõ hálózat NIC-ek nem tudtak IPv4 címet beszerezni, mert ebben a vonatkozásban nem érhetõ el a C:\Program Files\Oracle\VirtualBox\VBoxNetDHCP.exe program által nyújtott DHCP szolgáltatás)
+
+4. Állítsuk be az IPv4 címeket a két gépünk Belsõ hálózat csatolóinál a következõk szerint:
+Rendelkezésre áll a 200.1.100.0/24 "C" osztályú alhálózati címtartományt, amit az igényeinkhez szükséges és elégséges címet biztosítani képes CIDR alhálózati maszkkal kisebb egységekre osztva úgy kívánunk felhasználni, hogy e kisebb egységek közül az utolsó elõtti címei közül a kisebbet a W10Routre, a nagyobbat az LClient gép érintett kártyájának adjuk.
+
+CIDR számítás:
+
+A fenti elméleti 256 db címet tartalmazó egységet kell felosztanunk több darab, számszerint 64 db 4-4 elméleti címet tartalmazó kisebb egységre.
+Az alábbi táblázat korrekt kitöltése megköveteli az új subnet mask értékének megadását: 
+255.255.255.252 (252(10)=11111100(2) => 00, 01, 10, 11
+
+
+NETWORK             Kioszthatók                   BROADCAST
+200.1.100.0         .1, .2                        200.1.100.3
+200.1.100.4         .5, .6                        200.1.100.7
+...
+200.1.100.248       .249, .250                    200.1.100.251
+---------------------------------------------------------------
+200.1.100.252       .253, .254                    200.1.100.255
+
+W10Router Belsõ hálózat csatolója: 200.1.100.249/30, LClient: 200.1.100.250/30 statikus címeket kell kapja.
+
+LClient esetén: nano /etc/network/interfaces
+A file-ba:
+
+#allow-hotplug..
+#iface enp0s3 inet dhcp
+
+auto enp0s3
+iface enp0s3 inet static
+  address 200.1.100.250
+  netmask 255.255.255.252
+  network 200.1.100.248
+  broadcast 200.1.100.251
+  gateway 200.1.100.249
+  
+Majd Ctrl+x utána "I" és egy Enter leütés
+Mivel a beállítás csak a hálózati háttérrendszer újraindítása után léphet érvénybe:
+/etc/init.d/networking restart
+És egy ellenõrzés: ip address show (ip a s)
+
+W10Router esetén:
+
+]
+

@@ -1,0 +1,100 @@
+Linux-os AD környezetbe szeretnénk gyorsan használható Windows klienseket létrehozni a korábban látott telepítõ optikai lemezrõl használható install.wim alapján.
+(Nem minden Windows változat alkalmas tartományi használatra, ezért az általunk korábban létrehozott helyett kell Pro változatot készíteni, amit majd klónozva használunk a tartományi környezetben)
+
+A WIM-rõl történõ mûködõ rendszer létrehozása történhet úgy, hogy tulajdonképpen egy teljesen üres gépre tesszük fel és nem úgy járunk el, mint tettük korábban, hogy egy üres merevlemezre másoltuk föl az így elérhetõ rendszert.
+
+(Mivel az asztali gépünk 16 GB RAM-mal rendelkezik, abból kb. 11 GB gond nélkül biztosítható virtuális gépek számára. Mivel a PDC, a Linux-os Active Directory, DHCP, Router funkcionalitású gépünk mindössze 2 GB RAM-ot kapott, amellett vígan mûködtethetünk akár 3 db olyan Windows-t, amelyeknek egyenként 2-2 GB RAM-ja van. 4 x 2 GB = 8 GB < 11 GB
+
+Fontos ezekkel kapcsolatban tisztán látnunk, ugyanis pl. Windows Server OS környezetben a VirtualBox-hoz hasonló virtualizáció biztosítható a Hyper-V szerver szerepkörrel, amely a szerver hardverének erõforrásait fogja megosztani a benne kialakított virtuális gépekkel, ahol a fenti szabályok hasonlóan érvényesülnek
+
+Pl. Windows Server 48 GB RAM memóriájú, akkor abban vígan mûködtethetõ maga a szerver mellett legalább 2 db 4-4 GB valamilyen rész szerver funkcionalitást biztosító virtuáli8s gép, feltéve természetesen a Windows operációs rendszer lincence feltételeinek megtartását.)
+
+
+Hozzunk létre egy W10Pro virtuális gépet: 2 GB RAM és Belsõ csatoló hálózati kártyával, ami a LAN nevû switch-be csatlakozik.
+
+Mivel üres merevlemezre szeretnénk feltenni az install.wim file-t manuálisan kell gondoskodnunk a partícionálásról.
+
+Amikor a telepítõ lemezt beindítjuk és a SZámítógép javítása funkciót választjuk, akkor a X: merevlemez lényegében a RAM területén van kialakítva, hiszen a tényleges merevlemezt eddig nem vettük használatba.
+
+DISKPART - egy olyan program, amivel pl. lemezpartícionálást és egyéb lemezekkel kapcsolatos kezdeti konfigurációs mûveletek végezhetünk el.
+
+? help kérése az al-prancsokról
+
+list ? megmutatja, hogyan kell használni a list al-prancsot
+
+list disk listázza a merevlemezeket
+
+select disk 0 paranccsal tudjuk a pillanatnyilag egyetlen 0-ás sorszámú lemezünket, további mûveletvégrehajtás érdekében használatba venni
+
+
+create partition primary size=50000 így egy kb. 50GB-os primary partíciót tudunk kialakítani, amivel majdnem egyenértékû lesz a size nélküli használat
+
+format fs=ntfs az imént kialakíott paríciót így tudjuk NTFS (network technology file system, Windows rendszerek alapértelmezett filerendszere) szerint megformázni (a megformázott és így adattárolásra elõkészített partíciót tekinthetjük kötetnek/VOLUME)
+
+(help format ad tájékoztatást) => format fs=ntfs label="System" quick
+
+Az elõbbi parancs után kiadva a list volume parancsot láthatjuk, hogy a most létrejött kötetnek nincs betûjele.
+
+assign letter=c
+
+(list volume mutatja is a betû hozzárendelését)
+
+active paranccsal tehetjük az adott partíciót/kötetet boot-olhatóvá, vagyis, hogy késõbbiekben arról, persze csak ha van rajta egy operációs rendszer legyen a RAM memóriába betölthetõ, hogy ott mûködve biztosítsa a gép használatát
+
+Mindezekre azért volt szükség, hogy használatba vonjuk az 50 GB-os merevlemezünket.
+
+A DISKPART-ból kilphetünk az exit paranccsal.
+
+A *.wim állományok használata a DISM program révén lesz lehetséges.
+
+
+dism /get-wiminfo /wimfile:D:\sources\install.wim (a telepítõlemezen található install.wim file-nak vagyunk kíváncsiak a tartalmára)
+
+Mivel számszerint 8 különbözõ index-szel jelölt változat van, nekünk ezek közül a PRO jelû kell, mert az egész biztosan beléptethetõ lesz tartományi környezetbe.
+
+dism /apply-image /imagefile:d:\sources\install.wim /index:7 /applydir:c:\ (ezzel másoljuk tulajdonképpen a telepítõlemezen megtalálható, már a késõbbiekben mûködtethetõ Windows rendszert a pillanatnyilag még üres C: jelû lemezegység gyökérkönyvtárába)
+
+C:\Windows\System32\bcdboot c:\windows (ezzel a másolás útján létrehozott Windows-ban gondoskodunk a boot-oláshoz szükséges file-ok biztosításáról)
+
+Az újraindítás után még néhány finomhangolás szükséges, de lényegében van egy mûködõ rendszerünk (nyelv, billentyûzet, hálózat, user, licence, stb)
+
+
+
+(A hálózatra kiexportálom PDCEsKliens.ova file-ba, a múltkor létrehozott Linux rendszerû: DHCP, Active Directory, Router funkcionalitású virtuális gépet, no meg a most létrehozott klienst, hogy ezeket importálva pórolhassák a hiányosságaikat.)
+
+
+A Win10Pro virtuális gépbõl kell készíteni két továbbit a VirtualBox klónozási funkciójával, hogy így legyen a komplex rendszer kipróbálható:
+
+- PDC: két NIC-es, egyik NAT, ahol megvalósul a ROUTER funkció a kliensek számára, akik a másikhoz Belsõ hálózat/LAN kapcsolódnak, ahol egyébként IPv4 címet is kapnak.
+- Windows-os gépek hálózati kártyái Belsõ hálózat, mint úgy általában DHCP-tõl automatikusan szereznek IPv4 címet, ami az elõzõek alapján biztosított lesz.
+- A PDC esetén beállítottunk egy CEGUNK.LAN tartományt és a klienseket ebbe kell beléptetnünk, természetesen úgy, hogy WS1, WS2, WS3 gépneveket adunk számukra (WS=workstation)
+
+A tartományi környezet, vagyis az Active Directory adatbázisaiban bekövetkezõ változások természtesen a PDC gépen a samba-tool eszközzel lesznek folyamatosan nyomon követhetõk
+
+Kissé barátságtalan a CLI használat, ezért megtehetjük azt, hogy a munkaállomások valamelyikére letöltünk egy RSAT=remote server administrtion tool csomagot a Microsoft-tól, amivel lehetéségünk lesz, GRAFIKUS üzemmódban állítgatni a tartomány mûködési feltételeit, kb úgy, mintha a Kiszolgálókezelõ MMC-t használnánk egy WIndows szerveren.
+
+(W10Pro-1, W10Pro-2, W10Pro-3 elnevezések a VirtualBox-on belül különböztetik meg a virtuális gépeket, amiknek azonban a Windows-on belül is eltérõ neve kell legyen, hogy a tartományi környezetben egyértelmûen szintén legyenek megkülönböztethetõk.
+LAN esetén IP cím ütközés és Név ütközés hibaüzenetek jelentkeznek, hogyha az egyértelmû megkülönböztetés nem biztosított.)
+
+
+PDC: samba-tool computer list megmutatja a domain számítógépeit
+samba-tool user list megmutatja a tartományi környezet felhasználóit
+samba-tool domain level show megmutatja, hogy Windows 2008 R2 szintû tartománnyal van dolgunk
+samba-tool domain info 223.255.255.254 megmutatja az Acitve Directory-s mûködési körülményeket, ahol 10.0.2.15 vagy 127.0.0.1 egyarán használható IPv4 cím volna (hátterében az áll, hogy a primary domain controller /etc/resolv.conf file-jában van egy nameserver 127.0.0.1 elsõ bejegyzés a "sulis" DNS szerverek mellett, ahol vélelmezhetõ, hogy DNS A rekordok formájában a PDC valamennyi IPv4 címe nyilvántartásba vételre került)
+
+
+LINUX esetén DHCP, iptables révén ROUTER funkció, SAMBA révén Active Diretory, amik összességében adnak egy PDC-t, hogy azután Windows 10 Pro kliensek legyenek kölcsönhatásba hozhatók a VirtualBox-on belül.
+
+
+
+A kialakított környezetünk WS1, WS2, WS3 gépeire bejelentkezhetünk tartományi felhasználóként (ez az alapértelmezés), de helyi, esetünkben User1 nevû felhasználói fiókot is használhatjuk, amire igaz, hogy a helyi gépen Rendszergazdai jogosultságokkal rendelkezik (Ilyenkor a bejelnetkezés pl.: WS1\User1 hivatkozással történik, tehát WS1 tartományba akarok belépni a WS1 tartomány User1 nevû felhasználójával)
+
+
+Nagyon lényeges, hogy a Helyi User1 felhasználónak van különféle beállítási joga az adott gépen, míg a tartományi felhasználónak, mégha az az Administrator is, alaphelyzetben nincs. Estünkben természeteses a CEGUNK\Administrator, tekintettel arra, hogy ennek nevében intéztük az adott gép tartománybaléptetését, rendelkezik pl. tûzfallal kapcsolatos Speciális beállításra, hogy mûködjön a PING. (Ekkor az ICMPv4 protokollt kell lényegében, mint bejövõ szabályt engedélyezetté tenni)
+
+
+Windows-os magyarázat az ICMP letiltására az: ha valami nem látszik a hálózaton, kisebb az esélye, hogy azt illetéktelenek manipulálják.
+
+
+A Microsoft Download Center-ébõl elérhetjük a RSAT=remote server administration tools csomagot, ami többek között arra lesz jó, hogy a Linux-os AD-t tulajdonképpen egy Windows-os kliensrõl tudjuk manipulálni. (Természetesen ez nemcsak az AD szerverszerepkörhöz, hanem lényegében mindegyikhez alkalmazható, viszont a példánkban csak az AD az, amelyikre használhatjuk a SAMBA Windows-os analógiája következtében)
+

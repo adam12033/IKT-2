@@ -1,0 +1,77 @@
+DHCP:
+  dynamic host configuration protocol
+  (a dinamikus ebben a vonatkozásban sokkal inkább jelenti azt, hogy egyszer meghatározva a mûködés körülményeit azok a továbbiakban már lényegében automatikusan álljanak a rendelkezésünkre. Így ez végülis automatikusan osztja az IP címeket, meg az azokkal kapcsolatos, lényeges járulékos adatokat: pl. Default Gateway, Network Address, DNS szerver, domain name, BROADCAST ADDRESS, a DNS szerveren kívüli egyéb szolgáltatások nyújtására használatos kiszolgálók címinformáció)
+  
+Windows 2012 Server R2 változatát telepítsük egy virtuális gépre, amelynél álljon rendelkezésre legalább 4 GB RAM és legalább 80 GB HDD kapacitás. A telepítést a telepítõ lemezkép file-ban megtalálható install.wim segítségével hajtsuk végre.
+A VirtualBox-ban ez a virtuálisgép W2K12Alap néven szerepeljen, ami nem tévesztendõ össze az operációs rendszer szerinti számítógép névvel.
+Miután megnéztük az *.iso file könyvtárszerkezetében a sources\install.wim állomány tartalmát:
+D:
+cd sources
+dism /get-wiminfo /wimfile:install.wim
+ A nekünk szükséges telepítendõ rendszer Indexe 2, ami a STANDARD grafikus változatát jelenti a Windows 2012 Server R2-nek
+ 
+DISKPART segítségével particionáltunk, ahol lényegében elkészíthettünk volna egy script file-t a következõ tartalommal:
+
+select disk 0
+create partition primary
+format fs=ntfs quick
+assign letter=c
+active
+exit
+
+Az így létrejött file-t DISKPART /s <script-file-neve>
+
+A dism parancssal tudjuk a szükséges elõtelepített windows image-t rátenni a c: jelû, elõbb elõkészített lemezre.
+
+dism /apply-image /imagefile:d:\sources\install.wim /index:2 /applydir:c:\
+
+Ekkor megvan a már majdnem mûködésbe hozható Windows-unk.
+
+C:\Windows\System32\bcdboot C:\Windows
+
+(A korábban alkalmazott ACTIVE és a fenti parancs biztosítja, hogy boot-oláskor a kernel, vagyis az operációs rendszer magja a RAM memóriába kerüljön a C:\Windows könyvtárba az elõbbi paranccsal átmásolt tartalmakból)
+
+A Linux esetén egy nano vagy pico elnevezésû egyszerû szövegszerkesztõ a rendelkezésünkre áll (arra az esetre, ha nem tettük volna fel az mc-t).
+A DISKPART-script elkészítéséhez használhatjuk a C:\Windows\System32\notepad.exe - Jegyzettömb programot, de használhatjuk a következõt is:
+
+
+copy con szoveg.txt
+ide írogathatjuk
+mindazt, amit csak
+szeretnénk, a sorok
+végén természetesen Enter-t
+ütve
+F6 gomb, vagy CTRL+Z helyezi el az EOF=end of file jelzést befejezve a file tartalmát.
+
+(A fenti másoló parancs a Console egységrõl, ami a billentyûzet, ha input és a képernyõ, ha output másol a megadott file-ba. Pl. a copy szoveg.txt con <=> type szoveg.txt)
+
+
+WDHCP szervert a W2K12Alap virtuálisgép klónozásával hoztuk létre
+(Klónozásnál fontos figyelne a MAC-ADDRESS-ekre, ugyanis, ha véletlenül több, használni kívánt klón rendelkezik ugyanazzal a MAC-ADDRESS-szel, noha ezek az Adatkapcsolati rétegben játszanak igazán szerepet, a magasabb OSI rétegekben is problémát okozhatnak. Ennek magyarázata, hogy az OSI rétegeinek megfelelõ bõvülnek azok az üzenetcsomagok, amelyek révén biztosított a hálózati kommunikáció. Pl. az adatkapcsolati réteg FRAME-jeiben csak MAC-ADDRESS-ek szerepelnek, míg a hálózati réteg PACKET-jei már IP címekkel is kiegészülnek)
+
+WDHCP szerver a jelenleg használt NAT típusú hálózati kártyán kívül rendelkezzen egy Belsõ hálózat típusú csatolóval is, ami az alapértelmezett intnet elnevezésû VirtualBox-on belüli LAN-ba csatlakozik. (Erre a kártyára azért van szükség, mert a DHCP szolgáltatást majd ezen keresztül fogja a szerver nyújtani a VirtualBox intnet hálózatának kliensei számára)
+
+A modern Windows Server operációs rendszerek (2008 utániak) már nem a hagyományo MMC-s megoldású Kiszolgáló kezelõt mûködtetik, hanem egy kicsit a Webalkalmazásokra hasonlító Irányitópult/Dashboard rendszert.
+Az Irányitópult címsorában a Kezelés gombra kattintva érhetjük el a Szerepkörök és Szolgáltatások hozzáadása funkciót, amivel, mint szerepkört, telepíthetjük a DHCP szerverfunkciót.
+
+(Mind a Linux, mind a Windows rendszerek esetén jellemzõ az a gyakorlat, hogy szerverfunkciót telepítve, automatikusan létrejön(nek) felhasználók, akik lényegében ezt a szolgáltatást mûködtetik)
+
+A DHCP szerepkör telepítése után meg kell nézni, hogy megfelelõ kártyát feltételezve fog mûködni majd a szolgáltatás (Kötés az esetünkben a 223.255.255.254/24 címû, tehát statikus IPv4 címû kártyára kell vonatkozzon)
+
+Ezután az IPv4 kategóriánál kellett létrehozni egy új Hatókör-t, ami többek között egy elnevezéssel került azonosításra, majd egy fenti kártyával összefüggõ címtartományt várt: 223.255.255.101-tõ 223.255.255.150-ig terjedt.
+Mindezeken túl természetesen az alhálózati maszk is megadásra került, sõt az alapértelmezett átjáró és a DNS szerver(ek). Amint viszont mindezekkel végeztünk, már van egy mûködõ, tehát kliensek részére címet szolgáltatni képes DHCP szerverünk.
+
+Kipróbálása egy pillanatnyilag statikus IPv4 címmel rendelkezõ Linux OS-û géppel az alábbiak szerint kell történjen:
+
+VirtualBox-ban a Belsõ csatoló, mindenképpen a szerver Belsõ csatolójánál alkalmazott intnet hálózatba, ha valakinek úgy tetszik intnet elnevezésû switch-be legyen bekötve.
+Miután a linuxos gépet beindítottuk:
+
+nano /etc/network/interfaces file szerkesztésével érjük el, hogy az enp0s3 csatoló dhcp-tõl kapjon címet
+
+
+allow-hotplug enp0s3
+iface enp0s3 inet dhcp
+
+A fentiek érvénybeléptetése érdekében: /etc/init.d/networking restart és, ha az ip address show parancs az enp0s3 kártyánál nem mutatna címet, akkor még dhclient enp0s3 parancs is szükséges lehet
+
+

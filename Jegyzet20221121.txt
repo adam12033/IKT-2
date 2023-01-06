@@ -1,0 +1,79 @@
+Mivel a CsevegoApp Python programon túl mutatkoznak egyéb feladványok is a korábban meghatározott komplex projekt kapcsán, kezdjünk foglalkozni azokkal.
+
+A szerverünk, ami döntésünk alapján Windows Server, a Linux és Windows kliensek számára kell nyújtson DHCP szolgáltatást, ráadásul úgy, hogy IPv4 és/vagy IPv6 legyen használható.
+
+Hálózati szolgáltatási környezet kialakításakor nagyon fontos a tervszerûség pl. számítógépek, felhasználók, felhasználó csoportok, stb. elnevezése esetén.
+
+Változtassuk meg tehát a Windows szerver telepítõtõl kapott bizonyos mértékben véletlenszerû nevét, lehetõleg olyanra, ami kifejezi az adott szolgáltó feladatait (pl. DHCP_AD)
+Mivel a szerverünk alapkiépítése csak egy NAT típusú kártyát tartalmaz, ami viszont a pillanatnyilag alkalmazott virtualizációs program, a VirtualBox következtében, a virtulis környezetben mûködõ DHCP-tõl kap címet, alkalmatlan arra, hogy kliensek számára DHCP szolgáltatóként mûködjön.
+(Ezt a szervert az elõzetes feladatmegfogalmazás alapján mûködtethetnénk, mint átjárót/ROUTER-t, ami viszont egy újabb, csak a gép kikapcsolt állapotában beépíthetõ hálózati kártyát igényel)
+
+A DHCP szerverszerepkör konfigurálása esetén nagyon fontos, hogy a szolgáltatás által nyújtott IP cím tartományba illeszkedõ statikus címmel lássuk el az adott NIC-et.
+(Tervszerûség: IPv4: 223.255.255.0/24 tartományt kívánjuk használni, amibõl a százig terjedõ címeket tartjuk fenn a szerverek számára, míg a 200 és aföllöttieket hálózati eszközöknek tartalékoljuk. A megmaradó: 101-tõl 199-ig terjedõ értékek lesznek a kliensek számára biztosíthatók
+
+IPv6 esetén hogyan volna lehetõségünk mondjuk a fentihez hasonló címtartományi meghatározást megfogalmazni?
+16 byte-os címekrõl van szó, amelyeknél az IPv4-nél használatos alhálózati maszkhoz hasonlatos sajátosság a prefixnek feltethetõ meg, ami alapján pl. abcd:1234:5678:90ab:cdef:1234:5678:ff01 címet megadva a prefixet pedig 15-re állítva lényegében azt mondtuk ki, hogy a 16 byte-os IPv6 címbõl az elsõ 15 byte legyen az alhálózatot kifejezõ rész, a megmaradó 1 byte pedig a LAN-unk esetén lesz használható, a szerverünkre a 01 végzõdésû statikus értéket állítottuk be)
+
+Amint települt a DHCP szerepkör a C:\Windows\System32 könyvtárban megjelenik egy dhcp alkönyvtár. A DHCP szerepkör eltávolítását követõen, amikor már a háttérben mûködõ rendszerfolyamat sem blokkolja a nevezett könyvtárat a késõbbi rendellenességek elkerülése végett praktikus törölni.
+
+Amikor egy DHCP hatókört konfigurálunk, ideális helyzetben ezt azt követõen tesszük, hogy kialakításra került a tartomány környezet (Active Directory) így a tartománynév(szülõtartomány) és az abban PDC-ként mûködõ szerver, ami egyszer s mind DNS szolgáltató is címe eljuttatható lesz a kliensekhez. (Mi elõbb csináltuk a DHCP-t, mint az AD-t, így lényegében az elõbbieket, mintegy megelõlegeztük)
+
+IPv6 esetén a prefix, vagy elõtag, pont ugyanúgy, mint a CIDR-es/VLSM-es perjeles IPv4-es beállításoknál bit-ben kell kifejezésre kerüljön, így a 15 byte helyett 120 bit-re kellett volna utalni.
+Vagyis a statikus IPv6 címet úgy módosíthatnánk, hogy a prefix értéke 120 lenne a cím pedig maradna változatlanul a hasraütés szerinti: abcd:1234:5678:90ab:cdef:1234:5678:ff01. Mindezek szerint a prefix által kijelölt rész: abcd:1234:5678:90ab:cdef:1234:5678:ff, amit szándékaink szerint átvinnénk a DHCP IPv6 hatókörének beállításához. DE!!! ott azt tapasztaljuk, hogy egy megváltoztathatatlan /64 látszik, ami nyilván figyelembe veendõ.
+Ha egyszerûen bemásoljuk a /64 elé a teljes statikus IPv6 címet, abból az elsõ 8 byte, vagyis 64 bit jelzi az alhálózatot, miközben a második 8 bit-en kellene meghatároznunk a kliensek részére osztandó címek körét.
+Végülis abcd:1234:5678:90ab:cdef:1234:5678:ff ment a /64 elé, amíbõl a kezdõ és záró IPv4 címekhez megváltoztathatatlanul abcd:1234:5678:90ab: került, így a kitöltendõ rubrikába a folytatást kell betennünk természetesen úgy, hogy a 101 decimális értéknek megfelelõ hexadecimális byte kerüljön a kezdõbe és 199 decimális értéknek megfelelõ pedig a záró IPv6 cím meghatározásához:
+
+Kezdõ: cdef:1234:5678:ff64
+Záró: cdef:1234:5678:ffc7
+
+/100 (10)= 64 (16) és 199 (10) = C7(16), mivel ezeket a kalkulátor segítségével állapítottuk meg, nem baj, ha tudjuk, hogy lehet ezt kiszámolni:
+
+(10)->(2)->(16) 100 (10) = 01100100 (2) = 64 (16), 199 (10) = 11000111 (2) = C7 (16)
+
+Mivel a ténylegesen kiosztható címek tartományát a kizárások révén tudjuk meghatározni két címtatománnyal tudjuk garantálni, hogy kívánt címek álljanak végül rendelkezésre:
+
+Kizárások tehát:
+
+abcd:1234:5678:90ab:cdef:1234:5678:ff00 - abcd:1234:5678:90ab:cdef:1234:5678:ff63
+abcd:1234:5678:90ab:cdef:1234:5678:ffc8 - abcd:1234:5678:90ab:cdef:1234:5678:ffff
+
+így a kliensek a következõ tartományból kaphatnak címeket:
+
+abcd:1234:5678:90ab:cdef:1234:5678:ff64 - abcd:1234:5678:90ab:cdef:1234:5678:ffc7
+
+
+Azt követõen, hogy a szerverünkön mind az IPv4, mind az IPv6 vonatkozásában a DHCP funkcionalitás konfigurálásra került, annak mûködõképességét a kliensek révén diagnosztizálhatjuk.
+
+Ehhez azonban a klienseknél fontos módosítani a pillanatnyilag rendelkezésre álló NAT hálózati kártyát, a szerver összhangban álló Belsõ hálózat csatolóra.
+
+A DHCP szolgáltatás mûködésének diagnosztizálásakor láthattuk, hogy a Windows esetén IPv4 tekintetében minden rendben: 223.255.255.101/24 és default gateway,DNS és maga a DHCP is, de az IPv6-nál nem a várakozásunk szerinti cím látható:
+
+abcd:1234.5678:90ab:cefe:f9a2:ded1:e2e0, ahelyett, hogy pl. abcd:1234:5678:90ab:cdef:1234:5678:ff64
+
+Ennek magyarázata:
+Egyrészt természetesen bizonyos mértékben a 64 bit-es prefix, no meg az, hogy az elképzeléseink szerinti címzéshez, nem megfelelõ kizárásokat definiáltunk.
+
+abcd:1234:5678:90ab:0000:0000:0000:0001 - abcd:1234:5678:90ab:cdef:1234:5678:ff63
+abcd:1234:5678:90ab:cdef:1234:5678:ffc8 - abcd:1234:5678:90ab:ffff:ffff:ffff:ffff
+
+Az ilyen kizárás alkalmazás után már tényleg a következõ címtartomány kerülhet figyelembevételre:
+
+abcd:1234:5678:90ab:cdef:1234:5678:ff64 - abcd:1234:5678:90ab:cdef:1234:5678:ffc7
+
+A fentiek szerint módosítva az IPv6 beállításokat, a DHCP szerver újraindítását követõen (elképzelhetõ, hogy IPv4 és IPv6 esetén is, mintha nem mûködne lesz látható, de a Frissítés orvosolhatja a problémát) megújítva a Windows kliens IP címeit, reményeink szerint a korrekt mûködés lesz majd látható.
+
+A Windows-ban kipróbáltakat nézzük meg a Debian-ban is. Tapasztalat, hogy az IPv4 rendben mûködik, viszont IPv6 vonatkozásában valamiféle teljesen más cím látható:
+
+fe80::a00:27ff:fe85:fa91/64 scope link látszik (ITT az fe80 lényegében, mint helyi IPv6 címet határozza meg az értéket, szemben a hasraütés szerû, és a DHCP-n beállított címzési igénnyel. Ez egy automatizmus következménye)
+
+A Linux/Unix rendszerek hálózati mûködési körülményei többek között a /etc/sysctl.conf, illetve az ez által gyakorlt hatás következtében a /proc/sys/net területén belül lesz szabályozható. Itt, vagyis a /proc/sys/net/ipv6/conf/all/disable_ipv6 0 értéke azt jelenti, hogy ENGEDÉLYEZETT az IPv6 (ha 1 lenne, akkor a disable érvényesülne)
+Viszont ilyenkor csak scope link cím birtokába jutunk, DHCP-tõl származó IPv6 címhez nem. Ehhez a /etc/network/interfaces file-jában kell a következõ sort a meglévõ után szerepeltetni:
+
+iface enp0s3 inet6 dhcp
+
+(Vagyis inet6 jelöli ki a DHCP szerver használatát az IPv6 cím beszerzése érdekében)
+
+Ilyen feltételek után az ip a s parancs már mutatja az általunk meghatározott IPv6 cím létezését is. (scope global jelzéssel jelenik meg nálam pl. 
+
+abcd:1234:5678:90ab:cdef:1234:5678:ffa5/128, ami lényegében a globális jelentést hordozó prefixet is tartalmazza
+

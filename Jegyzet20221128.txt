@@ -1,0 +1,93 @@
+Az Active Directory környezetbe, ha egy szöveges állomány alapján szeretnénk sok-sok felhasználót hozzáadni, akkor ebben a vonatkozásban a Power Shelll biztosította képességek a rendelkezésünkre állnak.
+
+Power Shell ISE=integrated scripting environmont egy olyan Power Shell fejlesztést támogató program, amelyben egyrész szerkeszteni tudjuk a Power Shell script-ünk egyszerû szöveges állományát, amit természetesen idõrõl idõre tesztelve futtathatunk is, ráadásul mind e közben kimerítõ háttértámogatást is kaphatunk.
+
+
+A PS-ISE beállítása:
+View/Show Script Pane mutatja a script-et tartalmazó szövegszerkesztõ ablakfelületet
+View/Show Command Add-On mutatja a cmdlet-ekkel kapcsolatos segítségnyújtó felületet, aminél többek között nyilvánvalóvá válik, hogy adott cmdlet esetén mi kötelezõ és mi nem
+
+Ps-ben filefeldolgozás esetén nyilván fontos lehet a CSV egyszerû szöveges állomány formátum, aminek lényege, hogy soronként összetartozó adattartalmak valamilyen szeparátorral kell létrejöjjenek, amiket azután lehetõségünk lesz alklams cmdlet-tel feldolgozni.
+
+(CSV alapértelmezésben, mivel comma separeted version, vesszõvel választja el egymástól a tartalmakat, ami azonban a magyar mûködési körülmények között nem érvényesül, ugyanis ott a ; pontosvesszõ a lista elemek elválasztója)
+
+Amennyiben van 5 vezeték- és 20 utónevünk, hány különbözõ teljes név lesz összeállítható (5x20=100), mivel azonban a teljes nevek összeállítását véletlenszerûen kívánjuk megoldani ezért nincs kizárva az sem, mint a valóságban, hogy egy cég esetén ugyanolyan névvel rendelkezõ munkatársa dolgozhassanak, amit mindenképp kezelnünk kell a user-ek létrehozását végzõ script-ünk esetén.
+
+A PS editorával, Minden file/all files opcióval tetszõleges file-okat is létre tudunk hozni a szokványosnak mondhat *.ps1 shell script, és így végülis futtatható állományok mellett
+
+
+PS-ben a változónevek mindig dollárjellel kezdõdnek pl.: $adatok
+
+
+$adatok=Import-Csv "alapadatok.csv" ez a megfogalmozás arra szolgál, hogy az adatok azonosítójú változóba bekerülhessen a csv formátumú megnevezett állomány tartalma (esetünkben relatív útvonal hivatkozással utalunk a file-ra, ami nem esik egybe a PowerShell feltételezésével, ezért az hibát okoz, vagyis a korrekt hivatkozás documents\alapadatok.csv)
+
+$adatok hivatkozással az idõközben beolvasott tartalom lesz a változóból láthatóvá tehetõ (tehát pusztán csak a $-es változónév hivatkozást adva ki parancsként a változó aktuális tartalma lesz látható)
+
+Mivel a változó hivatkozás egyszer s mind kiírásnak is minõsül használhatjuk a pipe technikát, ami a |-lal képes az egyébként képernyõre kerülõ tartalmat átadni a pipe-karaktert (|) követõ parancsnak, mint annak inputként figyelembe vehetõ tartalmát.
+
+$adatok|ForEach-Object{
+    ($_.veznev+" "+$_.utonev)
+}
+
+A fenti részlet az adatok változót soronként véve $_ a sorra utaló hivatkozás, a sor tartalmaként megjelenõ vezetéknév és utónév részt összefûzi (KONKATENÁLÁS) egy teljes név elõállítása érdekében
+A zárójelezésre azért volt szükség, hogy a megfogalmazást, mint végrehajtandó/kiértékelendõ kifejezést tekintse a feladatvégrehajtó.
+ForEach-Object cmdlet lényegében egy sokaság elemein végig lépegetõ ciklus, amelynél a sokaság aktuálisan figyelembe vett elemére tudunk hivatkozni a $_ jelöléssel. A ciklusmag, vagyis az ismétlõdõ utasítások a C# vagy Java programozási nyelvek konvencióját követve {...} kapcsos zárójelek közötti programblokként kerülnek megfogalmazásra.
+
+
+Ha CSV állományt pl. a magyar nyelvû Microsoft Offiece Excel táblázat kezelõjével hozunk létre, akkor a magyar nemzeti sajátosságok miatt nem , hanem ; lesz a tagoló szimbólum
+
+Az ilyen nemzeti sajátosságból fakadó probléma kiküszöbölhetõ, ha az Import-Csv cmdlet esetén használjuk a -Delimiter ";" paramétert.
+
+Ha rendelkezésünkre áll egy 5 vezetéknevet és 20 utónevet tartalmazó pontosvesszõ tagolást alkalmazó CSV állomány, akkor abból a tartalmakat betölthetnénk egy $venek, $unevek tömbbe, értelemszerûen figyelve arra, hogy, ahol nincs megadva már vezetéknév, azokat a sorokat hagyjuk figyelmen kívül.
+
+$vnevek=@()
+$unevek=@()
+
+kezdetben üresek a késõbbiek használandó tömbök (a tömb szinonímája a Python-ból ismerõs lista: vnevek=[])
+
+A PS változói jelölhetnek OBJEKTUM-okat is, amelyekrõl, mint tudjuk adat+kód együtteseként lesznek majd használhatók. Az objektumok adatrésze a TULAJDONSÁGAIT, a kód része a VISELKEDÉSEIT határozza meg, ami alapján:
+
+($vnevek.Length+" "+$unevek.Length) itt a tömbök elemszámát jelentõ Length tulajdonságot használva kaptuk eredményként a 25, ugyanis van 5 db vezeték- és 20 db utónevünk, így ezek összege 25
+
+($vnevek.Length.ToString()+" "+$unevek.Length.ToString()) itt az 5, mint szám String-é vagyis karaktersorozattá alakíva jeleníti meg az "5 20" karaktersorozatot, vagyis a két elemszámot egy szóközzel elválasztva. Itt a szám adattípus, mint objektum ToString() viselkedését használtuk fel (METÓDUS)
+
+$db=0
+while($db -le 100){
+    $teljesnev=""
+    $vnev=$vnevek|Get-Random
+    $teljesnev+=$vnev
+    $teljesnev+=" "
+    $teljesnev+=($unevek|Get-Random)
+    $teljesnev
+    $db++
+}
+
+A fenti ciklus addig mûködik, míg a db változó értéke 100-nál kisebb vagy egyenlõ (-le egyenértékû a <= relációjellel)
+
+A Get-Random az INPUT-ként kapott sokaságból választ egyet véletlenszerûen
+A kerekzárójelezés kényszeríti ki, hogy az így megkülönböztetett rész, mint az aritmetikában (a matematika számolásra vonatkozó tudományterülete) elõbb kerüljön figyelembe vételre minden máshoz képest
+
+Ha szeretnénk az összeállított teljes neveket egy NEVSOR.TXT file-ba tenni, milyen cmdlet-et kell ehhez használnunk?
+
+
+Out-File -FilePath "Nevsor.txt" -InputObject $teljesnev -Append
+
+Az Out-File az -Append paraméter alkalmazása nélkül csak és kizárólag az utoljára beleírt tartalmat fogja tárolni. Ha azonban használjuk a bõvítést, vagyis a file elõzõ állpotához képest újabb sort tartalmazó megoldást (-Append), akkor az összes keletkezõ nevünk a file-ban lesz megtalálható.
+-FilePath "Nevsor.txt" a felhasználói profilmappá hozza létre az állományt, ha az nem létezne még, mi viszont a Dokumentumok nevezetû könyvtárban szeretnénk, ami miatt az Import-CSV-hez hasolóan, -FilePath "Documents\Nevsor.txt" megoldást kell alkalmazzunk.
+Az InputObject paraméterrel tudjuk meghatározni, hogy mit kell beleírni a file-ba, az ugyanis ennek a cmdlet egy bemenõ argumentuma (alternatív használat $teljesnev|Out-File "Documents\Nevsor.txt" -Append)
+
+
+Az iméntiek alapján létrehozott 100 felhasználó teljes nevét tartalmazó állománnyal az a probléma, hogy:
+
+- az Active Directory adminisztrációjában a felhasználót pl. bejelentkezéskor használandó azonosító: username, nem tartalmazhat ékezetes karaktereket.
+- az Active Directory nem teszi lehetõvé ugyanazon felhasználói név több ízben való figyelembe vételét sem
+- az Active Directory a felhasználó létrehozásakor elvárja egy olyan jelszó szerepeltetését is, amit legfeljebb az elsõ bejelentkezés alkalmával majd módosítania kell az értintettnek
+- az Active Directory PowerShell-bõl használt felhasználók létrehozására szolgáló cmdlet-je (New-ADUser) a jelszót (AccountPassword) mint titkosított karaktersorozatot (SecureString) várja, minek következtében a PLAIN text-ként megadott jelszót titkos karaktersorozattá leszünk kénytelenek alakítani
+
+
+
+Nyilvánvaló, hogy egy céges környezetben van értelme megtervezni a felhasználókat azonosító usernevek használatát:
+
+Esetünkben ha a felhasználó: Tóth András, akkor a username részére: toth.andras, amit a tartományi névvel, esetünkben a projektfeladat.pelda kiegészítve, a két részt egymástól e-mail címek módjára a @-cal elválasztva kell szerepeltetni: toth.andras@projektfeladat.pelda
+Mivel azonban a nyersanyagunkban névazonosságokat tartalmazhat, rá kell készülnünk az azokkal kapcsolatos problémára, vagyis, ha egy felhasználót nem lehet felvenni, mert ilyen username-mel korábban vettünk már fel egy másikat, akkor pl toth.andras2@projektfeladat.pelda névvel kell próbálkozni (szóval egy számot teszünk a vezeték.utónév után megkülönböztetésül, mivel azonban lehetséges, hogy a 2 nem jó, mert olyan is van már addig kell növelgetve a számot kísérletezgetni, míg egy megfelelõt nem találunk)
+

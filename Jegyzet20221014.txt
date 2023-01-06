@@ -1,0 +1,126 @@
+LinuxAlap virtuálisgépünkbõl, klónozással létrehoztuk az LDHCP-t, amibe a NAT kártya mellé egy Belsõ csatoló NIC-et is beépítünk, amit egy HELYIGEPEK elnevezésû VirtualBox-on belüli hálózatba csatlakoztatunk.
+(Ennek a HELYIGEPEK elnevezésnek kell szerepelnie majd a kliens Belsõ csatolójánál is, hogy, mintha egy switch-be volnának bekötve, tudjanak együttmûködni)
+
+A Linux esetén, amikor beteszünk egy már mûködõ rendszerbe egy új hálózati kártyát, akkor nem történik meg az, ami a Windows-nál viszont igen, hogy DHCP-tõl IP címet igénylõ státusza volana.
+
+Azokban az esetekben amikor a VirtualBox-béli virtuális gépeknek a NAT csatolón keresztül biztosítani szeretnénk az ilyen-olyan távoli kapcsolódási lehetõségét, mivel ez úgy történik, hogy a gazdagép hálózati kártyáján keresztül juthatunk el a virtuálishoz a virtuális gép Eszközök menüpont Hálózat Hálózati beállítások párbeszédlapján, a NAT típusú kártya esetén a Haladó szakaszban kell Port továbbítási szabály(oka)t meghatározni.
+Ezek a szabályok kb olyasfélék, mint amit a Linux-ban, sokszor hasonló céllal az iptables segítségével határozunk meg. Kevésbé közvetlen a hasonlóság a Windows Tûzfalánál végrehajtható megoldással.
+Esetemben azt kívánom elérni, hogy létesíthessek a virtuálisgépemmel a Windows parancssorában használható ssh paranccsal secure shell távoli bejelentkezést.
+Az SSH standard TCP port-ja a 22-es, ezért a gazdagép hálózati kártyájának IPv4 címére érkezõ és ezt a port-ot "célzó" forgalamat szeretném a virtuális gép felé továbbítani.
+(/etc/services file-ban találhatjuk meg a jellemzõ PORT és SERVICE párokat, amik nyilván a különféle esetekben lesznek majd felhasználhatók. Mivel ez az összefoglaló a "JÓL ISMERT" megoldásokat tartalmazza fontos tudnunk, hogy természetesen el lehet ezektõl térni, mondjuk pl. az SSH-t nem a 22-es, hanem 22222-es port-on is mûködtethetnénk.
+A port-ok természetesen kapcsolódhatnak az UDP és/vagy TCP protokollokhoz, így végülis elmondható az, hogy egy adott gépen mûködtetett szolgáltatás címzése: IP cím és PORT formában történik, ahol a port-ok száma, tekintettel arra, hogy 2 byte-os értékrõl van szó: 65536 lehet. A gépemen: 172.16.16.148:22 utal arra, hogy a szokásos TCP-s SSH port-ot használva szeretnék dolgozni)
+
+A virtuálisgépnél tehát a következõ szabályt kell alkalmaznom
+
+NÉV     Protokoll       Gazda IP          Gazda port      Vendég IP         Vendég port
+SSH     TCP             172.16.16.148     22              10.0.2.15         22
+
+Amikor a Windows parancssorából kapcsolódok:
+
+ssh user1@172.16.16.148 parancsot kell használnom, amibõl az is látszik, hogy a Linux/UNIX ssh csak normál felhasználóval engedélyezi a távoli bejelentkezést, vagyis a root user-t nem lehet erre a célra használni.
+
+(Mivel ezt a megoldást, ugyanígy, de más-más virtuális gépek esetén is használjuk, fontos tudnunk, hogy a Windows rendszerben /így van ez a Linux-ban is/ a biztonságos kapcsolódáshoz és titkosításhoz nélkülözhetetlen nyilvános kulcsot el kell tárolni. S ha egy adott IP címmel kapcsolatban ez korábban megtörtént már az az aktuális új esetben hibához vezethet. A Windows-ban a felhasználói profil mappában van egy .ssh nevû almappa és ebben pedig egy egyszerû szöveges állomány tartalmazza az IP cím és nyilvános kulcs párt: known_hosts a file neve.
+A jelentkezõ hibaüzenet kivédhetõ:
+a) huszárosan a known_hosts file törlésével
+b) de úgy is, hogy egyszerûen a zavart okozó részét töröljük)
+
+
+
+A szervereink esetén nemcsak az fontos, hogy statikus, fix IP címmel rendelkezzenek, hanem az is, hogy megfelelõ, kifejezõ számítógép nevük legyen. (Windows/Ez a gép/Tulajdonságok, Linux esetén pedig az /etc/hostname állományának átírása. Mindkét rendszernél újra kell indítani a számítógépet, hogy annak újólag beállított elnevezése érvénybe lépjen)
+
+apt search dhcp|more paranccsal tudunk utána nézni annak, hogy miféle dhcp szöveggel összefüggõ telepíthetõ csomagok vannak, a telepítés során az interneten http protokollal elérhetõ ún. tükörszerveren/MIRROS Server
+(|more hatására a lista képernyõ méretû egységekre tagoltan jelenik meg - ezt nevezzük pipe technikának, ami a windows-ban használható és lényege az hogy a függõleges vonal - pipe karakter - elõtti parancs output-ja lesz az utána szereplõ parancs input-ja)
+
+A keresés eredményében feltûnt az isc-dhcp-server csomag, mi ezt kívánjuk telepíteni és a körülményeinknek megfelelõen konfigurálni.
+
+dmesg|grep eth paranccsal tudunk utánajárni annak, hogy minden hálózati kártyánk megvan-e, mûködik-e
+
+apt install isc-dhcp-server
+
+(A Windows-hoz hasonlóan a Linux-ban is, ha feltelepítünk egy programot, akár egy szerver szolgáltatást, esetleges lehet annak mûködésbe hozása, ugyanis lehetséges, hogy bizonyos konfigurációs beállítások lesznek szükségesek)
+
+ps -fax|more paranccsal tudjuk megnézni a számítógépen aktuálisan mûködõ folyamatokat, process-eket, legyenek azok általunk vagy bárki más által beindítottak. Ha egy szerverfunkció mûködésbe tudott lépni, akkor nyilván az is megjelenik ebben a listában. (A Linux/UNIX rendszerekben a daemon kifejezés használatos a szerverfunkciót ellátó olyan programokra, amelyek a RAM-ba betöltõdésük után mûködésbe lépnek és folyamatosan figyelik a hozzájuk érkezõ kéréseket. A daemon folyamtok tehát egy végtelen ciklusra emlékeztetõ, de a háttérben mûködõ programnak lesznek elképzelhetõ)
+
+Az isc-dhcp-server beindulásának ellehetetlenülését mutatja az, hogy semmi ráutaló elem nem szerepelt a listában.
+
+Az /etc/network/interfaces file-ját kell kiegészítenünk a 2. hálókártyánkra vonatkozó statikus cím beállítással:
+
+auto enp0s8
+iface enp0s8 inet static
+  address 223.255.255.254
+  netmask 255.255.255.0
+  network 223.255.255.0
+  broadcast 223.255.255.255
+  
+  
+Majd szükséges az /etc/init.d/networking restart parancs, amivel a hálózati háttérszolgáltatást újraindítjuk így garantálva a beállításaink érvénybe léptetését.
+
+(elõtte ip a s, és utána is, hogy ellenõrizzük a történéseket)
+
+Amikor újraindítjuk a hálózati hátteret, nálam, ahol távoli bejelentkezéssel dolgoztam, megszakadt az összeköttetés, hiszen az a hálózat révén volt biztosított.
+Ha utána járunk, hogy mi történt az ip address show paranccsal (ip addr sh vagy ip a s is jó), akkor azt láthatjuk, hogy az enp0s8 szépen megkapta a statikus címet, ellenben a korábban címmel rendlekezõ enp0s3 esetén eltûnt a 10.0.2.15/24 cím, ugyanis ezt egy VirtualBox-ban mûködõ DHCP szolgáltatástól (VBoxNetDHCP.exe) szerezte be korábban, ami nem történik meg automatikusan, ha a hálózati háttérszolgáltatásokat újra indítjuk.
+
+dhclient enp0s3 paranccsal tudjuk lejátszani azt a folyamatot, hogy:
+
+DHCPDISCOVER->DHCPOFFER->DHCPREQUEST->DHCPACK
+
+Abban az esetben, ha a számítógép csak egyetlen hálózati csatolóval rendelkezik, akkor elegendõ a dhclient használata is, nálunk mivel két kártya is rendelkezésre áll volt fontos, hogy megmondjuk melyiknek akarunk DHCP-tõ címet beszerezni.
+
+Mivel a szervermûködéshez nélkülözhetetlen fix IP cím rendelkezésre, folytathatjuk az isc-dhcp-server konfigurálását.
+
+/etc/default/isc-dhcp-server file-ban kell elvégezni a következõ módosítást:
+
+INTERFACESv4="" => INTERFACESv4="enp0s8"
+
+(ha több kártyán is szeretnénk DHCP szolgáltatást nyújtani, akkor az idézõjelek között azok elnevezéseit, szóközökkel tagolva kell szerepeltetni)
+
+/etc/dhcp/dhcpd.conf állományba is el kell végezni változatatásokat:
+
+(Ezt a file-t az isc-dhcp-server csomagjának telepítõje hozta létre alapértelmezett, de számunkra korántsem megfelelõ tartalommal. A Linux-os konfigurációs állományokban #-tel kezdõdõ sorok csak megjegyzések, magyarázatok)
+
+option domain-name "example.org"; sor arra utal, hogy a DHCP szolgáltatás környezetében van a example.org taromány. Estünkben, mivel igazából nincs jelentõsége a tartományi mûködésnek az
+
+option domain-name "balintdezso.local"; módosítást végezhetnénk el.
+(A Windows-ban meg sem adtunk ilyet, mondván nincs rá az adott helyzetben szükség, végülis itt is megtehetnénk, hogy az option domain-name ""; megoldást alkalmazzuk. FONTOS!!!! a dhcpd.conf állományban figyelnünk kell a ; és { } karakterek követekezetes elhelyezésére. A legtöbb sort a ; zárja, ha elmarad az szintaktikai hiba és nyilván emiatt nem fog tudni az isc-dhcp-server elindulni)
+
+
+A dhcpd.conf állományban szereplõ option megoldások a DHCP szerver globális, a kliensek számára kiadandó értékeket határozzák meg (lehet olyan opciókat is kiküldeni, amelyek nem globálisak, hanem egy konkrét címtartományra, vagy ahogyan a Windows-ban láttuk egy hatókörre érvényesülnek csak)
+
+option domain-name-servers ns1.example.org, ns2.example.org; azért problematikus, mert amint láttuk az nslookup parancsot használva: nem léteznek a set type=ns kiadása után megnézve az example.org tartományt, annak valódi névszerverei kerültek listázásra: 
+
+example.org     nameserver = a.iana-servers.net
+example.org     nameserver = b.iana-servers.net
+
+Ahhoz, hogy a kliensek számára egy olyan DNS szervert adjunk meg, ami képes a névfeloldásra a példánkban:
+
+option domain-name-servers 172.16.16.29; szerpelhetne, hiszen ez a gép a közvetlen környezetünkben mûködõ DNS szerver
+(odahaza az ottani DNS szerver címét kell beállítani. Ami egyébként /etc/resolv.conf file-ból tudható meg, mert azt a VBoxNetDHCP.exe az IPv4 címmel 10.0.2.15/24 együtt küldte ki.
+
+A fentiek módosítása után kell készítenünk a dhcpd.conf file-ban egy Windows-os Hatókörnek megfelelõ subnet definíciót, amiben többek között a kiosztható IPv4 címek tartománya is megadásra kerül.
+
+subnet 223.255.255.0 netmask 255.255.255.0 {
+  range 223.255.255.101 223.255.255.150;
+  option routers 223.255.255.254;
+}
+
+
+A dhcpd.conf file módosíása, kiegészítése után: /etc/init.d/isc-dhcp-server restart paranccsal kísérelhetjük meg beindítani a dhcp szolgáltatást
+(Mivel az isc-dhcp-server nem is mûködik helyénvalóbb lenne: /etc/init.d/isc-dhcp-server start)
+
+
+
+FELADAT:
+
+A LinuxAlap virtuális gépet alapulvéve készítsen egy klónt, amelynek neve a VirtualBox-ban és az operációs rendszerben is egyaránt SERVER legyen.
+A SERVER nevû virtuális gépet a benne található NAT kártya mellett egészítse ki két Belsõ hálózat csatolóval, amelybõl az egyik az "EGYIK", a másik pedig a "MASIK" nevû "Switch-be" csatlakozik.
+A kiegészített gépet beindítva állítsa be a Belsõ hálózat csatolók statikus IPv4 címét. 
+A kisebb sorszámú csatolónál 128.128.128.240/28 címtartomány utolsó lehetséges címét, a nagyobb sorszámúnál pedig az utolsó lehetséges IPv4 címet.
+
+(szükség szerint ellenõrizheti a beállított címeket)
+
+Telepítse az isc-dhcp-server csomagot a SERVER nevû gépre, majd konfigurálja úgy, hogy mindkét Belsõ hálózati csatolón történjen cím szolgáltatás, ami a szerver számára kiosztott cím kivételével az összes többi lehetségest ki kell adja a kliensek részére.
+A LinuxAlap gépbõl hozzon létre egy MUNKAALLOMAS1 és MUNKAALLOMAS2 nevû klónt, amelyekben 1-1 Belsõ hálózat csatoló áll rendelkezésre, de úgy, hogy eltérõ switch-ekbe legyenek azok bekötve, mert szeretnénk diagnosztizálni a szerver ilyetén mûködését is.
+
+(Ha egyik változatban mûködik pl. MUNKAALLOMAS1 - EGYIK, MUNKAALLOMAS2 - MASIK, akkor nézze meg mûködik-e úgyis, hogy MUNKAALLOMAS1 - MASIK, MUNKAALLOMAS2 - EGYIK kerül a virtuális gépek konfigurációjában megadásra)
+
+természetesen ugyanezt oldja meg Windows Server 2012 R2 rendszerrel is.
